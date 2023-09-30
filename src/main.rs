@@ -47,7 +47,9 @@ async fn main() -> Result<(), WebSocketError> {
 
     loop {
         let (stream, _) = listener.accept().await?;
+
         println!("Client connected");
+
         tokio::spawn(async move {
             let conn_fut = Http::new()
                 .serve_connection(stream, service_fn(server_upgrade))

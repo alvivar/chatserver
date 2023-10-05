@@ -4,14 +4,14 @@
 		return;
 	}
 
-	const socket = new WebSocket('ws://127.0.0.1:8080');
+	const socket = new WebSocket('ws://127.0.0.1:8080/ws');
 
 	socket.addEventListener('open', (event) => {
 		log('Connected to the server.');
 	});
 
 	socket.addEventListener('message', (event) => {
-		log(`Server: ${event.data}`);
+		log(`${event.data}`);
 	});
 
 	socket.addEventListener('close', (event) => {
@@ -26,6 +26,10 @@
 		if (event.key === 'Enter') sendMessage();
 	});
 
+	document.getElementById('send').addEventListener('click', (event) => {
+		sendMessage();
+	});
+
 	function sendMessage() {
 		const input = document.getElementById('input');
 
@@ -34,7 +38,6 @@
 
 		if (message.trim() !== '') {
 			socket.send(message);
-			log(`Sent: ${message}`);
 		}
 	}
 
@@ -45,7 +48,7 @@
 	}
 
 	function log(text) {
-		const logs = document.getElementById('logs');
-		logs.insertBefore(messageHtml(text), logs.firstChild);
+		const messages = document.getElementById('messages');
+		messages.insertBefore(messageHtml(text), messages.firstChild);
 	}
 })();

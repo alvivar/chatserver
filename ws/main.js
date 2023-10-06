@@ -32,17 +32,19 @@
 
 	function sendMessage() {
 		const input = document.getElementById('input');
-
 		const message = input.value;
 		input.value = '';
 
+		let name = document.getElementById('name').value;
+
 		if (message.trim() !== '') {
-			socket.send(message);
+			socket.send(`${name}${message}`);
 		}
 	}
 
 	function messageHtml(message) {
 		const p = document.createElement('p');
+		p.classList.add('py-2');
 		p.textContent = message;
 		return p;
 	}

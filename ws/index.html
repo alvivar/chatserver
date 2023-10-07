@@ -3,36 +3,36 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>WebSocket Chat</title>
+		<title>Some Chat</title>
 		<script src="https://cdn.tailwindcss.com"></script>
 	</head>
 
-	<body class="flex justify-center bg-slate-100">
+	<body class="flex justify-center bg-gray-100">
 		<div class="max-w-screen-sm p-4">
 			<div class="grid grid-cols-4 gap-2 content-end">
 				<input
-					class="col-span-1 text-slate-600 border-2 p-2 rounded-lg"
+					class="col-span-1 text-stone-500 border-2 p-2 outline-none hover:outline-slate-200 rounded-lg"
 					type="text"
 					id="name"
 					placeholder="Name..."
 				/>
 
 				<input
-					class="col-span-3 text-slate-600 border-2 p-2 rounded-lg"
+					class="col-span-3 text-stone-500 border-2 p-2 outline-none hover:outline-slate-200 rounded-lg"
 					type="text"
 					id="input"
 					placeholder="Message..."
 				/>
 			</div>
-			<div class="grid grid-cols-1 mt-1">
+			<div class="grid grid-cols-1 mt-2">
 				<button
-					class="col-span-1 text-white border bg-blue-200 hover:bg-blue-400 px-4 py-2 rounded-lg"
+					class="col-span-1 text-white hover:font-bold border bg-blue-300 hover:bg-blue-400 px-4 py-2 rounded-lg"
 					id="send"
 				>
-					WRITE
+					Chat
 				</button>
 			</div>
-			<div class="text-slate-600 p-2" id="messages"></div>
+			<div class="text-slate-500 p-2" id="messages"></div>
 		</div>
 		<script src="main.js"></script>
 	</body>

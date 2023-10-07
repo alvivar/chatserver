@@ -19,7 +19,7 @@
 	});
 
 	socket.addEventListener('error', (event) => {
-		log('Error: ' + JSON.stringify(event));
+		console.log(`Error: ${event}`);
 	});
 
 	document.getElementById('input').addEventListener('keydown', (event) => {
@@ -32,13 +32,13 @@
 
 	function sendMessage() {
 		const input = document.getElementById('input');
-		const message = input.value;
 		input.value = '';
 
-		let name = document.getElementById('name').value;
+		const message = input.value.trim();
+		const name = document.getElementById('name').value.trim();
 
-		if (message.trim() !== '') {
-			socket.send(`${name}${message}`);
+		if (message !== '') {
+			socket.send(`${name} ${message}`);
 		}
 	}
 

@@ -1,109 +1,129 @@
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use fastwebsockets::upgrade;
-use fastwebsockets::Frame;
-use fastwebsockets::OpCode;
-use fastwebsockets::Payload;
-use fastwebsockets::WebSocket;
-use fastwebsockets::WebSocketError;
+use anyhow::Result;
+use fastwebsockets::upgrade::upgrade;
+use fastwebsockets::{FragmentCollector, OpCode, WebSocketError};
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::Body;
-use hyper::Request;
-use hyper::Response;
+use hyper::upgrade::Upgraded;
+use hyper::{Body, Request, Response};
 use tokio::net::TcpListener;
-use tokio::net::TcpStream;
-use tokio::sync::mpsc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
-async fn handle_client(
-    fut: upgrade::UpgradeFut,
-    tx: mpsc::Sender<(usize, Frame<'_>)>,
+use data::{Message, SharedState, State};
+mod data;
+
+async fn handle_ws(
+    mut ws: FragmentCollector<Upgraded>,
+    client_addr: SocketAddr,
+    state: &SharedState,
 ) -> Result<(), WebSocketError> {
-    let mut ws = fastwebsockets::FragmentCollector::new(fut.await?);
-
-    loop {
-        let frame = ws.read_frame().await?;
-        match frame.opcode {
-            OpCode::Close => break,
-            OpCode::Text | OpCode::Binary => {
-                // ws.write_frame(frame).await?;
-                // tx.send(frame).await.unwrap();
-            }
-            _ => {}
-        }
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    {
+        let mut state = state.write().await;
+        state.clients.insert(client_addr, tx);
     }
 
-    println!("Client disconnected");
+    println!("New connection with {}", client_addr);
+
+    loop {
+        tokio::select! {
+            frame = ws.read_frame() => {
+                let frame = frame?;
+
+                match frame.opcode {
+                    OpCode::Close => {
+                        println!("Closing connection with {}", client_addr);
+                        break;
+                    }
+                    OpCode::Text => {
+                        let text = String::from_utf8(frame.payload.to_vec()).unwrap();
+                        state.read().await.broadcast(&client_addr, Message::Text(text)).await;
+                        ws.write_frame(frame).await?;
+                    }
+                    OpCode::Binary => {
+                        state.read().await.broadcast(&client_addr, Message::Binary(frame.payload.to_vec())).await;
+                        ws.write_frame(frame).await?;
+                    }
+                    _ => {}
+                }
+            },
+            frame = rx.recv() => {
+                if let Some(frame) = frame {
+                    ws.write_frame(frame.to_frame()).await?;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
 
     Ok(())
 }
 
-async fn server_upgrade(
-    mut req: Request<Body>,
-    tx: mpsc::Sender<(usize, Frame<'_>)>,
-) -> Result<Response<Body>, WebSocketError> {
-    let (response, fut) = upgrade::upgrade(&mut req)?;
+async fn request_handler(
+    mut request: Request<Body>,
+    address: SocketAddr,
+    state: SharedState,
+) -> Result<Response<Body>> {
+    let uri = request.uri().path();
 
-    let tx_clone = tx.clone();
-    tokio::task::spawn(async move {
-        if let Err(e) = tokio::task::unconstrained(handle_client(fut, tx_clone)).await {
-            eprintln!("Error in websocket connection: {}", e);
+    match uri {
+        "/ws" => {
+            let (response, fut) = upgrade(&mut request)?;
+
+            tokio::spawn(async move {
+                let ws: FragmentCollector<Upgraded> =
+                    fastwebsockets::FragmentCollector::new(fut.await.unwrap());
+
+                handle_ws(ws, address, &state).await.unwrap();
+
+                {
+                    let mut state = state.write().await;
+                    state.clients.remove(&address);
+                }
+            });
+
+            Ok(response)
         }
-    });
 
-    println!("Upgraded to websocket connection");
+        _ => {
+            let response = Response::builder()
+                .status(404)
+                .body("Not found (404)".into())?;
 
-    Ok(response)
-}
-
-async fn broadcast(
-    mut rx: mpsc::Receiver<(usize, Frame<'_>)>,
-    clients: Arc<Mutex<HashMap<usize, WebSocket<TcpStream>>>>,
-) {
-    while let Some((id, frame)) = rx.recv().await {
-        for (&client_id, client) in clients.lock().await.iter_mut() {
-            let payload = Payload::from(frame.payload.to_vec());
-            let frame = Frame::new(frame.fin, frame.opcode, None, payload);
-
-            if id != client_id {
-                let _ = client.write_frame(frame).await;
-            }
+            Ok(response)
         }
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), WebSocketError> {
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;
-    println!("Server started, listening on 127.0.0.1:8080");
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let listener = TcpListener::bind(addr).await?;
 
-    let clients = Arc::new(Mutex::new(HashMap::<usize, WebSocket<TcpStream>>::new()));
-    let (tx, rx) = mpsc::channel::<(usize, fastwebsockets::Frame)>(32);
+    println!("Listening on {}", addr);
 
-    let clients_broadcast = clients.clone();
-    tokio::spawn(async move {
-        broadcast(rx, clients_broadcast).await;
-    });
+    let state = Arc::new(RwLock::new(State {
+        clients: HashMap::new(),
+    }));
 
     loop {
-        let (stream, _) = listener.accept().await?;
+        let (stream, address) = listener.accept().await?;
+        let state = state.clone();
 
-        println!("Client connected");
-
-        let service = {
-            let service_tx = tx.clone(); // Clone here
-            service_fn(move |req: Request<Body>| server_upgrade(req, service_tx.clone()))
-            // Clone again to make sure each request gets its own.
-        };
-
-        tokio::spawn(async move {
-            let conn_fut = Http::new()
-                .serve_connection(stream, service)
-                .with_upgrades();
-            if let Err(e) = conn_fut.await {
-                eprintln!("An error occurred: {:?}", e);
+        tokio::task::spawn(async move {
+            if let Err(err) = Http::new()
+                .serve_connection(
+                    stream,
+                    service_fn(move |req| request_handler(req, address, state.clone())),
+                )
+                .with_upgrades()
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
             }
         });
     }

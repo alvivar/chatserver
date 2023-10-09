@@ -32,10 +32,10 @@
 
 	function sendMessage() {
 		const input = document.getElementById('input');
+		const message = input.value.trim();
 		input.value = '';
 
-		const message = input.value.trim();
-		const name = document.getElementById('name').value.trim();
+		let name = document.getElementById('name').value.trim();
 
 		if (message !== '') {
 			socket.send(`${name} ${message}`);

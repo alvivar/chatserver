@@ -1,50 +1,41 @@
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
+mod data;
 
 use anyhow::Result;
-use fastwebsockets::upgrade::upgrade;
-use fastwebsockets::{FragmentCollector, OpCode, WebSocketError};
-use hyper::server::conn::Http;
-use hyper::service::service_fn;
-use hyper::upgrade::Upgraded;
-use hyper::{Body, Request, Response};
-use tokio::net::TcpListener;
-use tokio::sync::RwLock;
-
 use data::{Message, SharedState, State};
-mod data;
+use fastwebsockets::{upgrade::upgrade, FragmentCollector, OpCode, WebSocketError};
+use hyper::{server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Request, Response};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::{net::TcpListener, sync::RwLock};
 
 async fn handle_ws(
     mut ws: FragmentCollector<Upgraded>,
-    client_addr: SocketAddr,
+    address: SocketAddr,
     state: &SharedState,
 ) -> Result<(), WebSocketError> {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(128);
     {
         let mut state = state.write().await;
-        state.clients.insert(client_addr, tx);
+        state.clients.insert(address, tx);
     }
 
-    println!("New connection with {}", client_addr);
+    println!("New connection with {}", address);
 
     loop {
         tokio::select! {
             frame = ws.read_frame() => {
                 let frame = frame?;
-
                 match frame.opcode {
                     OpCode::Close => {
-                        println!("Closing connection with {}", client_addr);
+                        println!("Closing connection with {}", address);
                         break;
                     }
                     OpCode::Text => {
                         let text = String::from_utf8(frame.payload.to_vec()).unwrap();
-                        state.read().await.broadcast(&client_addr, Message::Text(text)).await;
+                        state.read().await.broadcast(&address, Message::Text(text)).await;
                         ws.write_frame(frame).await?;
                     }
                     OpCode::Binary => {
-                        state.read().await.broadcast(&client_addr, Message::Binary(frame.payload.to_vec())).await;
+                        state.read().await.broadcast(&address, Message::Binary(frame.payload.to_vec())).await;
                         ws.write_frame(frame).await?;
                     }
                     _ => {}
@@ -72,11 +63,10 @@ async fn request_handler(
 
     match uri {
         "/ws" => {
-            let (response, fut) = upgrade(&mut request)?;
+            let (response, upgrade) = upgrade(&mut request)?;
 
             tokio::spawn(async move {
-                let ws: FragmentCollector<Upgraded> =
-                    fastwebsockets::FragmentCollector::new(fut.await.unwrap());
+                let ws = FragmentCollector::new(upgrade.await.unwrap());
 
                 handle_ws(ws, address, &state).await.unwrap();
 
@@ -101,10 +91,10 @@ async fn request_handler(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    let listener = TcpListener::bind(addr).await?;
+    let address = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let listener = TcpListener::bind(address).await?;
 
-    println!("Listening on {}", addr);
+    println!("Listening on {}", address);
 
     let state = Arc::new(RwLock::new(State {
         clients: HashMap::new(),
@@ -118,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if let Err(err) = Http::new()
                 .serve_connection(
                     stream,
-                    service_fn(move |req| request_handler(req, address, state.clone())),
+                    service_fn(move |request| request_handler(request, address, state.clone())),
                 )
                 .with_upgrades()
                 .await

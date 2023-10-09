@@ -1,18 +1,28 @@
-mod data;
-
 use anyhow::Result;
-use data::{Message, SharedState, State};
+use async_openai::{
+    config::OpenAIConfig,
+    types::{ChatCompletionRequestMessageArgs, CreateChatCompletionRequestArgs, Role},
+    Client,
+};
 use fastwebsockets::{upgrade::upgrade, FragmentCollector, OpCode, WebSocketError};
+use futures::StreamExt;
 use hyper::{server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Request, Response};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, RwLock, Semaphore},
+};
+
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tokio::{net::TcpListener, sync::RwLock};
+
+mod data;
+use data::{Message, SharedState, State};
 
 async fn handle_ws(
     mut ws: FragmentCollector<Upgraded>,
     address: SocketAddr,
     state: &SharedState,
 ) -> Result<(), WebSocketError> {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(128);
+    let (tx, mut rx) = mpsc::channel(128);
     {
         let mut state = state.write().await;
         state.clients.insert(address, tx);
@@ -87,6 +97,69 @@ async fn request_handler(
             Ok(response)
         }
     }
+}
+
+async fn process_openai_request(
+    text: String,
+    openai_to_ws_tx: mpsc::Sender<String>,
+    client: Client<OpenAIConfig>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request = CreateChatCompletionRequestArgs::default()
+        .model("gpt-3.5-turbo")
+        .max_tokens(512u16)
+        .messages([ChatCompletionRequestMessageArgs::default()
+            .content(&text)
+            .role(Role::User)
+            .build()?])
+        .build()?;
+
+    let mut stream = client.chat().create_stream(request).await?;
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(response) => {
+                for chat_choice in response.choices.iter() {
+                    if let Some(ref content) = chat_choice.delta.content {
+                        openai_to_ws_tx.send(content.clone()).await.unwrap();
+                    }
+                }
+            }
+            Err(err) => {
+                println!("Error with OpenAI: {}", err);
+                // Optionally, send error to WebSocket client
+                openai_to_ws_tx
+                    .send(format!("Error: {}", err))
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn openai_handler(
+    mut ws_to_openai_rx: mpsc::Receiver<String>,
+    openai_to_ws_tx: mpsc::Sender<String>,
+    client: Client<OpenAIConfig>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // This semaphore limits concurrent requests to a certain number, adjust as needed
+    let semaphore = Arc::new(Semaphore::new(10)); // Limit to 10 concurrent requests
+
+    while let Some(text) = ws_to_openai_rx.recv().await {
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("Acquire semaphore");
+
+        let tx = openai_to_ws_tx.clone();
+        let client = client.clone();
+
+        tokio::spawn(async move {
+            let _ = process_openai_request(text, tx, client).await;
+            drop(permit); // release the semaphore permit
+        });
+    }
+    Ok(())
 }
 
 #[tokio::main]

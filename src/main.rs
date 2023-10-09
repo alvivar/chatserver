@@ -21,6 +21,7 @@ async fn handle_ws(
     mut ws: FragmentCollector<Upgraded>,
     address: SocketAddr,
     state: &SharedState,
+    ws_to_openai_tx: mpsc::Sender<String>,
 ) -> Result<(), WebSocketError> {
     let (tx, mut rx) = mpsc::channel(128);
     {
@@ -41,12 +42,7 @@ async fn handle_ws(
                     }
                     OpCode::Text => {
                         let text = String::from_utf8(frame.payload.to_vec()).unwrap();
-                        state.read().await.broadcast(&address, Message::Text(text)).await;
-                        ws.write_frame(frame).await?;
-                    }
-                    OpCode::Binary => {
-                        state.read().await.broadcast(&address, Message::Binary(frame.payload.to_vec())).await;
-                        ws.write_frame(frame).await?;
+                        ws_to_openai_tx.send(text).await.unwrap();
                     }
                     _ => {}
                 }
@@ -68,6 +64,7 @@ async fn request_handler(
     mut request: Request<Body>,
     address: SocketAddr,
     state: SharedState,
+    ws_to_openai_tx: mpsc::Sender<String>,
 ) -> Result<Response<Body>> {
     let uri = request.uri().path();
 
@@ -78,7 +75,9 @@ async fn request_handler(
             tokio::spawn(async move {
                 let ws = FragmentCollector::new(upgrade.await.unwrap());
 
-                handle_ws(ws, address, &state).await.unwrap();
+                handle_ws(ws, address, &state, ws_to_openai_tx)
+                    .await
+                    .unwrap();
 
                 {
                     let mut state = state.write().await;
@@ -103,7 +102,7 @@ async fn process_openai_request(
     text: String,
     openai_to_ws_tx: mpsc::Sender<String>,
     client: Client<OpenAIConfig>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     let request = CreateChatCompletionRequestArgs::default()
         .model("gpt-3.5-turbo")
         .max_tokens(512u16)
@@ -140,7 +139,7 @@ async fn openai_handler(
     mut ws_to_openai_rx: mpsc::Receiver<String>,
     openai_to_ws_tx: mpsc::Sender<String>,
     client: Client<OpenAIConfig>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     // This semaphore limits concurrent requests to a certain number, adjust as needed
     let semaphore = Arc::new(Semaphore::new(10)); // Limit to 10 concurrent requests
 
@@ -173,15 +172,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         clients: HashMap::new(),
     }));
 
+    // Assuming you've initialized the channels and the client before this point:
+    let (ws_to_openai_tx, ws_to_openai_rx) = mpsc::channel(128);
+    let (openai_to_ws_tx, openai_to_ws_rx) = mpsc::channel(128);
+    let client = Client::new(); // Or however you initialize the client
+
+    // Start the OpenAI handler
+    tokio::spawn(openai_handler(
+        ws_to_openai_rx,
+        openai_to_ws_tx,
+        client.clone(),
+    ));
+
     loop {
         let (stream, address) = listener.accept().await?;
         let state = state.clone();
+        let ws_to_openai_tx = ws_to_openai_tx.clone();
 
         tokio::task::spawn(async move {
             if let Err(err) = Http::new()
                 .serve_connection(
                     stream,
-                    service_fn(move |request| request_handler(request, address, state.clone())),
+                    service_fn(move |request| {
+                        request_handler(request, address, state.clone(), ws_to_openai_tx.clone())
+                    }),
                 )
                 .with_upgrades()
                 .await

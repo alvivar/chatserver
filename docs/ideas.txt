@@ -1,26 +1,27 @@
+> A simple note
 
-OnConnection returns the connection id.
+> A VR player
 
-    id
+    +pos
+    1
 
-+ to subscribe to a channel, returns the channel id.
+    !pos 45 x y z x y z
+    23
 
-    +somechannel
-    <channel id>
+    > 1 23 45 x y z x y z
 
-Unsubscribes from a channel with his name or id, returns the channel id.
+    !1
 
-    -somechannel
-    -23
-    <channel id>
 
-Sends a message to a channel using his name or id, returns the message id.
+> A chat (unfinished)
 
-    !somechannel <value>
-    !23 <value>
+    +random
+    c1
 
-    <message id>
+    +user
+    c2
 
-OnSubscription returns the value sent.
+    !2 Juan
+    m1
 
-    <channel id> <message id> value
+    !1 username El ternerito

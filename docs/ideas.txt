@@ -1,27 +1,7 @@
-> A simple note
 
-> A VR player
-
-    +pos
-    1
-
-    !pos 45 x y z x y z
-    23
-
-    > 1 23 45 x y z x y z
-
-    !1
+    Architecture
 
 
-> A chat (unfinished)
 
-    +random
-    c1
 
-    +user
-    c2
-
-    !2 Juan
-    m1
-
-    !1 username El ternerito
+    ws receiver

@@ -1,7 +1,0 @@
-
-    Architecture
-
-
-
-
-    ws receiver

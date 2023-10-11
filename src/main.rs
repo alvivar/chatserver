@@ -9,7 +9,7 @@ use futures::StreamExt;
 use hyper::{server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Request, Response};
 use tokio::{
     net::TcpListener,
-    sync::{mpsc, RwLock, Semaphore},
+    sync::{mpsc, RwLock},
 };
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
@@ -17,54 +17,10 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 mod data;
 use data::{Message, SharedState, State};
 
-async fn handle_ws(
-    mut ws: FragmentCollector<Upgraded>,
-    address: SocketAddr,
-    state: &SharedState,
-    ws_to_openai_tx: mpsc::Sender<String>,
-) -> Result<(), WebSocketError> {
-    let (tx, mut rx) = mpsc::channel(128);
-    {
-        let mut state = state.write().await;
-        state.clients.insert(address, tx);
-    }
-
-    println!("New connection with {}", address);
-
-    loop {
-        tokio::select! {
-            frame = ws.read_frame() => {
-                let frame = frame?;
-                match frame.opcode {
-                    OpCode::Close => {
-                        println!("Closing connection with {}", address);
-                        break;
-                    }
-                    OpCode::Text => {
-                        let text = String::from_utf8(frame.payload.to_vec()).unwrap();
-                        ws_to_openai_tx.send(text).await.unwrap();
-                    }
-                    _ => {}
-                }
-            },
-            frame = rx.recv() => {
-                if let Some(frame) = frame {
-                    ws.write_frame(frame.to_frame()).await?;
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
 async fn request_handler(
     mut request: Request<Body>,
     address: SocketAddr,
     state: SharedState,
-    ws_to_openai_tx: mpsc::Sender<String>,
 ) -> Result<Response<Body>> {
     let uri = request.uri().path();
 
@@ -75,9 +31,7 @@ async fn request_handler(
             tokio::spawn(async move {
                 let ws = FragmentCollector::new(upgrade.await.unwrap());
 
-                handle_ws(ws, address, &state, ws_to_openai_tx)
-                    .await
-                    .unwrap();
+                handle_ws(ws, address, &state).await.unwrap();
 
                 {
                     let mut state = state.write().await;
@@ -98,8 +52,66 @@ async fn request_handler(
     }
 }
 
+async fn handle_ws(
+    mut ws: FragmentCollector<Upgraded>,
+    address: SocketAddr,
+    state: &SharedState,
+) -> Result<(), WebSocketError> {
+    let (tx, mut rx) = mpsc::channel(128);
+    {
+        let mut state = state.write().await;
+        state.clients.insert(address, tx);
+    }
+
+    println!("New connection with {}", address);
+
+    let (openai_to_ws_tx, mut openai_to_ws_rx) = mpsc::channel::<String>(128);
+    let client = Client::new();
+
+    loop {
+        tokio::select! {
+            frame = ws.read_frame() => {
+                let frame = frame?;
+                match frame.opcode {
+                    OpCode::Close => {
+                        println!("Closing connection with {}", address);
+                        break;
+                    }
+                    OpCode::Text => {
+                        let prompt = String::from_utf8(frame.payload.to_vec()).unwrap();
+
+                        tokio::spawn(process_openai_request(
+                            prompt.into(),
+                            openai_to_ws_tx.clone(),
+                            client.clone(),
+                        ));
+                    }
+                    _ => {}
+                }
+            },
+            message = openai_to_ws_rx.recv() => {
+                if let Some(message) = message {
+                    let message = Message::Text(message);
+                    ws.write_frame(message.to_frame()).await?;
+                } else {
+                    break;
+                }
+            }
+            frame = rx.recv() => {
+                if let Some(frame) = frame {
+                    ws.write_frame(frame.to_frame()).await?;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn process_openai_request(
-    text: String,
+    prompt: String,
     openai_to_ws_tx: mpsc::Sender<String>,
     client: Client<OpenAIConfig>,
 ) -> anyhow::Result<()> {
@@ -107,7 +119,7 @@ async fn process_openai_request(
         .model("gpt-3.5-turbo")
         .max_tokens(512u16)
         .messages([ChatCompletionRequestMessageArgs::default()
-            .content(&text)
+            .content(&prompt)
             .role(Role::User)
             .build()?])
         .build()?;
@@ -124,7 +136,7 @@ async fn process_openai_request(
             }
             Err(err) => {
                 println!("Error with OpenAI: {}", err);
-                // Optionally, send error to WebSocket client
+
                 openai_to_ws_tx
                     .send(format!("Error: {}", err))
                     .await
@@ -132,32 +144,7 @@ async fn process_openai_request(
             }
         }
     }
-    Ok(())
-}
 
-async fn openai_handler(
-    mut ws_to_openai_rx: mpsc::Receiver<String>,
-    openai_to_ws_tx: mpsc::Sender<String>,
-    client: Client<OpenAIConfig>,
-) -> anyhow::Result<()> {
-    // This semaphore limits concurrent requests to a certain number, adjust as needed
-    let semaphore = Arc::new(Semaphore::new(10)); // Limit to 10 concurrent requests
-
-    while let Some(text) = ws_to_openai_rx.recv().await {
-        let permit = semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("Acquire semaphore");
-
-        let tx = openai_to_ws_tx.clone();
-        let client = client.clone();
-
-        tokio::spawn(async move {
-            let _ = process_openai_request(text, tx, client).await;
-            drop(permit); // release the semaphore permit
-        });
-    }
     Ok(())
 }
 
@@ -172,30 +159,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         clients: HashMap::new(),
     }));
 
-    // Assuming you've initialized the channels and the client before this point:
-    let (ws_to_openai_tx, ws_to_openai_rx) = mpsc::channel(128);
-    let (openai_to_ws_tx, openai_to_ws_rx) = mpsc::channel(128);
-    let client = Client::new(); // Or however you initialize the client
-
-    // Start the OpenAI handler
-    tokio::spawn(openai_handler(
-        ws_to_openai_rx,
-        openai_to_ws_tx,
-        client.clone(),
-    ));
-
     loop {
         let (stream, address) = listener.accept().await?;
         let state = state.clone();
-        let ws_to_openai_tx = ws_to_openai_tx.clone();
 
         tokio::task::spawn(async move {
             if let Err(err) = Http::new()
                 .serve_connection(
                     stream,
-                    service_fn(move |request| {
-                        request_handler(request, address, state.clone(), ws_to_openai_tx.clone())
-                    }),
+                    service_fn(move |request| request_handler(request, address, state.clone())),
                 )
                 .with_upgrades()
                 .await

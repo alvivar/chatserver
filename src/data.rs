@@ -1,6 +1,7 @@
 use fastwebsockets::Frame;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc::Sender, RwLock};
+
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 pub type Tx = Sender<Message>;
 pub type SharedState = Arc<RwLock<State>>;
@@ -9,6 +10,7 @@ pub struct State {
     pub clients: HashMap<SocketAddr, Tx>,
 }
 
+#[allow(dead_code)]
 impl State {
     pub async fn broadcast(&self, sender: &SocketAddr, msg: Message) {
         for (addr, tx) in self.clients.iter() {

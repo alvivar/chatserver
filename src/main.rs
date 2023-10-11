@@ -63,7 +63,7 @@ async fn handle_ws(
         state.clients.insert(address, tx);
     }
 
-    println!("New connection with {}", address);
+    println!("New {}", address);
 
     let (openai_to_ws_tx, mut openai_to_ws_rx) = mpsc::channel::<String>(128);
     let client = Client::new();
@@ -74,11 +74,17 @@ async fn handle_ws(
                 let frame = frame?;
                 match frame.opcode {
                     OpCode::Close => {
-                        println!("Closing connection with {}", address);
+                        println!("Closing {}", address);
                         break;
                     }
                     OpCode::Text => {
                         let prompt = String::from_utf8(frame.payload.to_vec()).unwrap();
+
+                        let message = Message::Text(prompt.clone());
+                        ws.write_frame(message.to_frame()).await?;
+
+                        let eof = Message::Text("\0".into());
+                        ws.write_frame(eof.to_frame()).await?;
 
                         tokio::spawn(process_openai_request(
                             prompt.into(),
@@ -96,7 +102,7 @@ async fn handle_ws(
                 } else {
                     break;
                 }
-            }
+            },
             frame = rx.recv() => {
                 if let Some(frame) = frame {
                     ws.write_frame(frame.to_frame()).await?;
@@ -135,7 +141,7 @@ async fn process_openai_request(
                 }
             }
             Err(err) => {
-                println!("Error with OpenAI: {}", err);
+                println!("OpenAI Error: {}", err);
 
                 openai_to_ws_tx
                     .send(format!("Error: {}", err))
@@ -145,6 +151,9 @@ async fn process_openai_request(
         }
     }
 
+    // This means that the transmission is over.
+    openai_to_ws_tx.send("\0".into()).await.unwrap();
+
     Ok(())
 }
 
@@ -153,7 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let address = SocketAddr::from(([127, 0, 0, 1], 8080));
     let listener = TcpListener::bind(address).await?;
 
-    println!("Listening on {}", address);
+    println!("Listening {}", address);
 
     let state = Arc::new(RwLock::new(State {
         clients: HashMap::new(),
@@ -172,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .with_upgrades()
                 .await
             {
-                println!("Error serving connection: {:?}", err);
+                println!("Error: {:?}", err);
             }
         });
     }

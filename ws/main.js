@@ -1,56 +1,73 @@
-(function () {
-	if (!window.WebSocket) {
-		alert('Your browser does not support WebSocket.');
+// Properties
+
+let transmisionComplete = true;
+
+// Sockets
+
+const socket = new WebSocket('ws://127.0.0.1:8080/ws');
+
+socket.addEventListener('open', () => {
+	newChat('Connected to the server.');
+});
+
+socket.addEventListener('message', (event) => {
+	if (event.data === '\0') {
+		transmisionComplete = true;
 		return;
 	}
 
-	const socket = new WebSocket('ws://127.0.0.1:8080/ws');
-
-	socket.addEventListener('open', (event) => {
-		log('Connected to the server.');
-	});
-
-	socket.addEventListener('message', (event) => {
-		log(`${event.data}`);
-	});
-
-	socket.addEventListener('close', (event) => {
-		log('Disconnected from the server.');
-	});
-
-	socket.addEventListener('error', (event) => {
-		console.log(`Error: ${event}`);
-	});
-
-	document.getElementById('input').addEventListener('keydown', (event) => {
-		if (event.key === 'Enter') sendMessage();
-	});
-
-	document.getElementById('send').addEventListener('click', (event) => {
-		sendMessage();
-	});
-
-	function sendMessage() {
-		const input = document.getElementById('input');
-		const message = input.value.trim();
-		input.value = '';
-
-		let name = document.getElementById('name').value.trim();
-
-		if (message !== '') {
-			socket.send(`${name} ${message}`);
-		}
+	if (transmisionComplete) {
+		newChat(event.data);
+		transmisionComplete = false;
+	} else {
+		appendText(event.data);
 	}
+});
 
-	function messageHtml(message) {
-		const p = document.createElement('p');
-		p.classList.add('py-2');
-		p.textContent = message;
-		return p;
-	}
+socket.addEventListener('close', () => {
+	newChat('Disconnected from the server.');
+});
 
-	function log(text) {
-		const messages = document.getElementById('messages');
-		messages.insertBefore(messageHtml(text), messages.firstChild);
+socket.addEventListener('error', (event) => {
+	console.log(`Error: ${event}`);
+});
+
+// UI
+
+document.getElementById('input').addEventListener('keydown', (event) => {
+	if (event.key === 'Enter') sendMessage();
+});
+
+document.getElementById('send').addEventListener('click', () => {
+	sendMessage();
+});
+
+function sendMessage() {
+	const input = document.getElementById('input');
+	const message = input.value.trim();
+	input.value = '';
+
+	let name = document.getElementById('name').value.trim();
+
+	if (message !== '') {
+		socket.send(`${name} ${message}`);
 	}
-})();
+}
+
+function messageHtml(message) {
+	const p = document.createElement('p');
+	p.classList.add('py-4');
+	p.classList.add('whitespace-pre-line');
+	p.textContent = message;
+	return p;
+}
+
+function appendText(text) {
+	const messages = document.getElementById('messages');
+	messages.firstChild.appendChild(document.createTextNode(text));
+}
+
+function newChat(text) {
+	const messages = document.getElementById('messages');
+	messages.insertBefore(messageHtml(text), messages.firstChild);
+}

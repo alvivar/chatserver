@@ -25,6 +25,20 @@ async fn request_handler(
     let uri = request.uri().path();
 
     match uri {
+        "/" | "/index.html" => {
+            let response = Response::builder()
+                .status(200)
+                .body(Body::from(include_str!("../web/index.html")))?;
+
+            Ok(response)
+        }
+        "/main.js" => {
+            let response = Response::builder()
+                .status(200)
+                .body(Body::from(include_str!("../web/main.js")))?;
+
+            Ok(response)
+        }
         "/ws" => {
             let (response, upgrade) = upgrade(&mut request)?;
 
@@ -41,7 +55,6 @@ async fn request_handler(
 
             Ok(response)
         }
-
         _ => {
             let response = Response::builder()
                 .status(404)
@@ -144,7 +157,7 @@ async fn process_openai_request(
                 println!("OpenAI Error: {}", err);
 
                 openai_to_ws_tx
-                    .send(format!("Error: {}", err))
+                    .send(format!("OpenAI Error: {}", err))
                     .await
                     .unwrap();
             }
@@ -181,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .with_upgrades()
                 .await
             {
-                println!("Error: {:?}", err);
+                println!("Serve Connection Error: {:?}", err);
             }
         });
     }

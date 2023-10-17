@@ -1,3 +1,4 @@
 # chatserver
 
-Chat with OpenAI API via fastwebsockets with Rust Tokio & Hyper.
+Chat with OpenAI models on a WebSocket server using `fastwebsockets` in Rust,
+powered by Tokio & Hyper.

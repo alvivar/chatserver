@@ -28,6 +28,7 @@ async fn request_handler(
         "/" | "/index.html" => {
             let response = Response::builder()
                 .status(200)
+                .header("Content-Type", "text/html")
                 .body(Body::from(include_str!("../web/index.html")))?;
 
             Ok(response)
@@ -35,7 +36,16 @@ async fn request_handler(
         "/main.js" => {
             let response = Response::builder()
                 .status(200)
+                .header("Content-Type", "application/javascript")
                 .body(Body::from(include_str!("../web/main.js")))?;
+
+            Ok(response)
+        }
+        "/favicon.ico" => {
+            let response = Response::builder()
+                .header("Content-Type", "image/x-icon")
+                .status(200)
+                .body(Body::from(include_bytes!("../web/favicon.ico").to_vec()))?;
 
             Ok(response)
         }
@@ -135,7 +145,7 @@ async fn process_openai_request(
     client: Client<OpenAIConfig>,
 ) -> anyhow::Result<()> {
     let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-3.5-turbo")
+        .model("gpt-4")
         .max_tokens(512u16)
         .messages([ChatCompletionRequestMessageArgs::default()
             .content(&prompt)

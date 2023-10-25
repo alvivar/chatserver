@@ -118,7 +118,7 @@ async fn handle_ws(
                         ws.write_frame(eof.to_frame()).await?;
 
                         tokio::spawn(process_openai_request(
-                            prompt.into(),
+                            prompt,
                             openai_to_ws_tx.clone(),
                             client.clone(),
                         ));

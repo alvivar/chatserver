@@ -30,6 +30,7 @@ const connect = () => {
 
 		if (transmisionComplete) {
 			newChat(event.data);
+
 			transmisionComplete = false;
 		} else {
 			appendText(event.data);
@@ -47,7 +48,7 @@ const connect = () => {
 			reconnectionAttempts += 1;
 			reconnectionDelay = Math.min(
 				maxReconnectionDelay,
-				reconnectionDelay * 2
+				reconnectionDelay * 1.5
 			);
 		}
 	});

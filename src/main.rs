@@ -17,46 +17,30 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 mod data;
 use data::{Message, SharedState, State};
 
+#[derive(Clone, Debug)]
+enum FileData {
+    Str(&'static str),
+    Bytes(&'static [u8]),
+}
+
+struct FileMap {
+    data: FileData,
+    mime_type: &'static str,
+}
+
 async fn request_handler(
     mut request: Request<Body>,
     address: SocketAddr,
     state: SharedState,
+    filemap: Arc<HashMap<&str, FileMap>>,
 ) -> Result<Response<Body>> {
-    let uri = request.uri().path();
+    let mut uri = request.uri().path();
+
+    if uri == "/" {
+        uri = "/index.html";
+    }
 
     match uri {
-        "/" | "/index.html" => {
-            let response = Response::builder()
-                .status(200)
-                .header("Content-Type", "text/html")
-                .body(Body::from(include_str!("../web/index.html")))?;
-
-            Ok(response)
-        }
-        "/main.js" => {
-            let response = Response::builder()
-                .status(200)
-                .header("Content-Type", "application/javascript")
-                .body(Body::from(include_str!("../web/main.js")))?;
-
-            Ok(response)
-        }
-        "/style.css" => {
-            let response = Response::builder()
-                .status(200)
-                .header("Content-Type", "text/css")
-                .body(Body::from(include_str!("../web/style.css")))?;
-
-            Ok(response)
-        }
-        "/favicon.ico" => {
-            let response = Response::builder()
-                .header("Content-Type", "image/x-icon")
-                .status(200)
-                .body(Body::from(include_bytes!("../web/favicon.ico").to_vec()))?;
-
-            Ok(response)
-        }
         "/ws" => {
             let (response, upgrade) = upgrade(&mut request)?;
 
@@ -74,13 +58,33 @@ async fn request_handler(
             Ok(response)
         }
         _ => {
-            let response = Response::builder()
-                .status(404)
-                .body("Not found (404)".into())?;
+            if let Some(map) = filemap.get(uri) {
+                let response = serve_file(&map.data, map.mime_type).await?;
 
-            Ok(response)
+                Ok(response)
+            } else {
+                let response = Response::builder()
+                    .status(404)
+                    .body("Not found (404)".into())?;
+
+                Ok(response)
+            }
         }
     }
+}
+
+async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Body>> {
+    let body = match data {
+        FileData::Str(s) => Body::from(*s),
+        FileData::Bytes(b) => Body::from(b.to_vec()),
+    };
+
+    let response = Response::builder()
+        .status(200)
+        .header("Content-Type", mime_type)
+        .body(body)?;
+
+    Ok(response)
 }
 
 async fn handle_ws(
@@ -199,15 +203,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         clients: HashMap::new(),
     }));
 
+    let filemap: HashMap<&str, FileMap> = [
+        (
+            "/index.html",
+            FileMap {
+                data: FileData::Str(include_str!("../web/index.html")),
+                mime_type: "text/html",
+            },
+        ),
+        (
+            "/main.js",
+            FileMap {
+                data: FileData::Str(include_str!("../web/main.js")),
+                mime_type: "application/javascript",
+            },
+        ),
+        (
+            "/style.css",
+            FileMap {
+                data: FileData::Str(include_str!("../web/style.css")),
+                mime_type: "text/css",
+            },
+        ),
+        (
+            "/favicon.ico",
+            FileMap {
+                data: FileData::Bytes(include_bytes!("../web/favicon.ico")),
+                mime_type: "image/x-icon",
+            },
+        ),
+    ]
+    .into();
+
+    let filemap = Arc::new(filemap);
+
     loop {
         let (stream, address) = listener.accept().await?;
         let state = state.clone();
+        let filemap = filemap.clone();
 
         tokio::task::spawn(async move {
             if let Err(err) = Http::new()
                 .serve_connection(
                     stream,
-                    service_fn(move |request| request_handler(request, address, state.clone())),
+                    service_fn(move |request| {
+                        request_handler(request, address, state.clone(), filemap.clone())
+                    }),
                 )
                 .with_upgrades()
                 .await

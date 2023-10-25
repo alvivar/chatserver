@@ -17,22 +17,14 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 mod data;
 use data::{Message, SharedState, State};
 
-#[derive(Clone, Debug)]
-enum FileData {
-    Str(&'static str),
-    Bytes(&'static [u8]),
-}
-
-struct FileMap {
-    data: FileData,
-    mime_type: &'static str,
-}
+mod filemap; // Static files are served from here.
+use filemap::{FileData, FileMap};
 
 async fn request_handler(
     mut request: Request<Body>,
     address: SocketAddr,
     state: SharedState,
-    filemap: Arc<HashMap<&str, FileMap>>,
+    static_files: Arc<HashMap<&str, FileMap>>,
 ) -> Result<Response<Body>> {
     let mut uri = request.uri().path();
 
@@ -58,7 +50,7 @@ async fn request_handler(
             Ok(response)
         }
         _ => {
-            if let Some(map) = filemap.get(uri) {
+            if let Some(map) = static_files.get(uri) {
                 let response = serve_file(&map.data, map.mime_type).await?;
 
                 Ok(response)
@@ -203,51 +195,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         clients: HashMap::new(),
     }));
 
-    let filemap: HashMap<&str, FileMap> = [
-        (
-            "/index.html",
-            FileMap {
-                data: FileData::Str(include_str!("../web/index.html")),
-                mime_type: "text/html",
-            },
-        ),
-        (
-            "/main.js",
-            FileMap {
-                data: FileData::Str(include_str!("../web/main.js")),
-                mime_type: "application/javascript",
-            },
-        ),
-        (
-            "/style.css",
-            FileMap {
-                data: FileData::Str(include_str!("../web/style.css")),
-                mime_type: "text/css",
-            },
-        ),
-        (
-            "/favicon.ico",
-            FileMap {
-                data: FileData::Bytes(include_bytes!("../web/favicon.ico")),
-                mime_type: "image/x-icon",
-            },
-        ),
-    ]
-    .into();
-
-    let filemap = Arc::new(filemap);
+    let static_files = FileMap::static_files();
 
     loop {
         let (stream, address) = listener.accept().await?;
         let state = state.clone();
-        let filemap = filemap.clone();
+        let static_files = static_files.clone();
 
         tokio::task::spawn(async move {
             if let Err(err) = Http::new()
                 .serve_connection(
                     stream,
                     service_fn(move |request| {
-                        request_handler(request, address, state.clone(), filemap.clone())
+                        request_handler(request, address, state.clone(), static_files.clone())
                     }),
                 )
                 .with_upgrades()

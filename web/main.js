@@ -1,36 +1,60 @@
 // Properties
 
+let socket = null;
 let transmisionComplete = true;
+
+const maxReconnectionAttempts = 30;
+const maxReconnectionDelay = 60000; // 1 minute
+const baseReconnectionDelay = 1000; // 1 second
+
+let reconnectionAttempts = 0;
+let reconnectionDelay = baseReconnectionDelay;
 
 // Sockets
 
-const socket = new WebSocket('ws://127.0.0.1:8080/ws');
+const connect = () => {
+	socket = new WebSocket('ws://127.0.0.1:8080/ws');
 
-socket.addEventListener('open', () => {
-	newChat('Connected to the server.');
-});
+	socket.addEventListener('open', () => {
+		newChat('Connected to the server.');
+		reconnectionAttempts = 0;
+		reconnectionDelay = baseReconnectionDelay;
+	});
 
-socket.addEventListener('message', (event) => {
-	if (event.data === '\0') {
-		transmisionComplete = true;
-		return;
-	}
+	socket.addEventListener('message', (event) => {
+		if (event.data === '\0') {
+			transmisionComplete = true;
+			return;
+		}
 
-	if (transmisionComplete) {
-		newChat(event.data);
-		transmisionComplete = false;
-	} else {
-		appendText(event.data);
-	}
-});
+		if (transmisionComplete) {
+			newChat(event.data);
+			transmisionComplete = false;
+		} else {
+			appendText(event.data);
+		}
+	});
 
-socket.addEventListener('close', () => {
-	newChat('Disconnected from the server.');
-});
+	socket.addEventListener('close', () => {
+		newChat('Disconnected from the server.');
 
-socket.addEventListener('error', (event) => {
-	console.log(`Error: ${event}`);
-});
+		if (reconnectionAttempts < maxReconnectionAttempts) {
+			setTimeout(() => {
+				connect();
+			}, reconnectionDelay);
+
+			reconnectionAttempts++;
+			reconnectionDelay = Math.min(
+				maxReconnectionDelay,
+				reconnectionDelay * 2
+			);
+		}
+	});
+
+	socket.addEventListener('error', (event) => {
+		console.log(`Error: ${event}`);
+	});
+};
 
 // UI
 
@@ -71,3 +95,7 @@ function newChat(text) {
 	const messages = document.getElementById('messages');
 	messages.insertBefore(messageHtml(text), messages.firstChild);
 }
+
+// Main
+
+connect();

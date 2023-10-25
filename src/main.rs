@@ -41,6 +41,14 @@ async fn request_handler(
 
             Ok(response)
         }
+        "/style.css" => {
+            let response = Response::builder()
+                .status(200)
+                .header("Content-Type", "text/css")
+                .body(Body::from(include_str!("../web/style.css")))?;
+
+            Ok(response)
+        }
         "/favicon.ico" => {
             let response = Response::builder()
                 .header("Content-Type", "image/x-icon")

@@ -1,0 +1,11 @@
+
+Memory, save all the prompts based on the user.
+
+Implement a server-side mechanism to access various GPT models.
+Develop a client-side feature to select different GPT system prompts or profiles.
+Distinguish between system-generated responses and user-generated responses on the client.
+
+
+October 25, 2023
+    x Completed the client prototype.
+    x Developed a WebSocket server prototype using async Rust with fastwebsockets, demonstrating good performance.

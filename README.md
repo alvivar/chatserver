@@ -16,13 +16,13 @@ The complicated part may be using `tailwindcss` to style the HTML :laughing:
 
 ### TailwindCSS
 
-We are using the CLI version of `tailwindcss` to build the CSS file, if you made some changes to it, remember to,
+We are using `tailwindcss` _CLI_ to build the CSS file, if you made some changes to it, remember to,
 
 install it with,
 
     npm install
 
-and then just get inside the `web` folder and run,
+and to compile it, get inside the `web` folder and run,
 
     npx tailwindcss -o style.css --minify
 

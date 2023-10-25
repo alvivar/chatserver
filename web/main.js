@@ -17,6 +17,7 @@ const connect = () => {
 
 	socket.addEventListener('open', () => {
 		newChat('Connected to the server.');
+
 		reconnectionAttempts = 0;
 		reconnectionDelay = baseReconnectionDelay;
 	});
@@ -43,7 +44,7 @@ const connect = () => {
 				connect();
 			}, reconnectionDelay);
 
-			reconnectionAttempts++;
+			reconnectionAttempts += 1;
 			reconnectionDelay = Math.min(
 				maxReconnectionDelay,
 				reconnectionDelay * 2
@@ -52,7 +53,7 @@ const connect = () => {
 	});
 
 	socket.addEventListener('error', (event) => {
-		console.log(`Error: ${event}`);
+		console.debug(`Error: ${event}`);
 	});
 };
 

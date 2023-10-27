@@ -20,13 +20,15 @@ For example:
 
 ```
 !model gpt4
+
 !main_prompt You are a robot! You forgot how to be human!
+
 !memory 4
 ```
 
 **Note**: When `!` precedes a word, the system recognizes it as a configuration command. However, if `!` is placed elsewhere in a message, it's treated as a regular character.
 
-This is also valid:
+A single message containing multiple commands is also considered valid.
 
 ```
 !model gpt4 !main_prompt You are a robot! You forgot how to be human! !memory 4

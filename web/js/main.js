@@ -3,7 +3,7 @@
 let _socket = null;
 let _transmisionComplete = true;
 
-const _maxReconnectionAttempts = 5;
+const _maxReconnectionAttempts = 30;
 const _maxReconnectionDelay = 60000; // 1 minute
 const _baseReconnectionDelay = 1000; // 1 second
 
@@ -11,57 +11,11 @@ let _reconnectionAttempts = 0;
 let _reconnectionDelay = _baseReconnectionDelay;
 let _reconnectionTimer = 0;
 
-let _reconnectTimerId = -1;
-let _reconnectTimer = 0;
+let _reconLogId = -1;
+let _reconLogTimer = 0;
 
-// Sockets
-
-const connect = () => {
-	_socket = new WebSocket('ws://127.0.0.1:8080/ws');
-
-	_socket.addEventListener('open', () => {
-		clearReconLog();
-		updateError('Connected to the server.');
-
-		_reconnectionAttempts = 0;
-		_reconnectionDelay = _baseReconnectionDelay;
-	});
-
-	_socket.addEventListener('message', (event) => {
-		if (event.data === '\0') {
-			_transmisionComplete = true;
-			return;
-		}
-
-		if (_transmisionComplete) {
-			newChat(event.data);
-
-			_transmisionComplete = false;
-		} else {
-			appendText(event.data);
-		}
-	});
-
-	_socket.addEventListener('close', () => {
-		if (_reconnectionAttempts < _maxReconnectionAttempts) {
-			setTimeout(() => {
-				connect();
-			}, _reconnectionDelay);
-
-			startReconLog(_reconnectionDelay);
-
-			_reconnectionAttempts += 1;
-			_reconnectionDelay = Math.min(
-				_maxReconnectionDelay,
-				_reconnectionDelay * 1.5
-			);
-		}
-	});
-
-	_socket.addEventListener('error', (event) => {
-		console.debug(`Error: ${event}`);
-	});
-};
+const messages = document.getElementById('messages');
+const pError = messages.querySelector('p#error');
 
 // UI
 
@@ -94,19 +48,14 @@ function messageHtml(message) {
 }
 
 function appendText(text) {
-	const messages = document.getElementById('messages');
 	messages.firstChild.appendChild(document.createTextNode(text));
 }
 
 function newChat(text) {
-	const messages = document.getElementById('messages');
 	messages.insertBefore(messageHtml(text), messages.firstChild);
 }
 
 function updateError(text) {
-	const messages = document.getElementById('messages');
-	const pError = messages.querySelector('p#error');
-
 	if (pError) {
 		pError.textContent = text;
 		messages.insertBefore(pError, messages.firstChild);
@@ -120,16 +69,16 @@ function updateError(text) {
 function startReconLog(currentTime) {
 	clearReconLog();
 
-	_reconnectTimerId = setInterval(() => {
-		_reconnectTimer += 1;
+	_reconLogId = setInterval(() => {
+		_reconLogTimer += 1;
 
 		if (_reconnectionAttempts >= _maxReconnectionAttempts) {
-			updateError(`Disconnected.`);
+			updateError(`Disconnected. Try refreshing the page.`);
 			clearReconLog();
 			return;
 		}
 
-		let time = currentTime / 1000 - _reconnectTimer;
+		let time = currentTime / 1000 - _reconLogTimer;
 		time = Math.max(0, Math.round(time));
 
 		let message = `Disconnected. Reconnecting in  ${time} seconds...`;
@@ -142,8 +91,8 @@ function startReconLog(currentTime) {
 }
 
 function clearReconLog() {
-	clearInterval(_reconnectTimerId);
-	_reconnectTimer = 0;
+	clearInterval(_reconLogId);
+	_reconLogTimer = 0;
 }
 
 // Main

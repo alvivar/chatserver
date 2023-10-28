@@ -21,9 +21,16 @@ impl FileMap {
                 },
             ),
             (
-                "/main.js",
+                "/js/main.js",
                 FileMap {
-                    data: FileData::Str(include_str!("../web/main.js")),
+                    data: FileData::Str(include_str!("../web/js/main.js")),
+                    mime_type: "application/javascript",
+                },
+            ),
+            (
+                "/js/socket.js",
+                FileMap {
+                    data: FileData::Str(include_str!("../web/js/socket.js")),
                     mime_type: "application/javascript",
                 },
             ),

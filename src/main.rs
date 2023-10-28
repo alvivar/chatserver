@@ -90,7 +90,7 @@ async fn handle_ws(
         state.clients.insert(address, tx);
     }
 
-    println!("New {}", address);
+    println!("{} New", address);
 
     let (openai_to_ws_tx, mut openai_to_ws_rx) = mpsc::channel::<String>(128);
     let client = Client::new();
@@ -101,7 +101,7 @@ async fn handle_ws(
                 let frame = frame?;
                 match frame.opcode {
                     OpCode::Close => {
-                        println!("Closing {}", address);
+                        println!("{} Closed", address);
                         break;
                     }
                     OpCode::Text => {
@@ -189,7 +189,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let address = SocketAddr::from(([127, 0, 0, 1], 8080));
     let listener = TcpListener::bind(address).await?;
 
-    println!("Listening {}", address);
+    println!("{} Listening", address);
 
     let state = Arc::new(RwLock::new(State {
         clients: HashMap::new(),

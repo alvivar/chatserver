@@ -1,5 +1,5 @@
 import { PubSub } from './pubsub.js';
-import { canReconnect, connect, send, SocketEvent } from './socket.js';
+import { connect, send, canReconnect, SocketEvent } from './socket.js';
 import {
 	appendText,
 	newChat,

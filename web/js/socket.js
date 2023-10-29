@@ -1,13 +1,13 @@
 import { PubSub } from './pubsub.js';
 
 let socket = null;
+let lastAddress = '';
 let transmisionComplete = true;
 
 const maxReconnectionAttempts = 30;
 const maxReconnectionDelay = 60000; // 1 minute
-const baseReconnectionDelay = 1000; // 1 second
+const baseReconnectionDelay = 3000; // 1 second
 
-let lastAddress = '';
 let reconnectionAttempts = 0;
 let reconnectionDelay = baseReconnectionDelay;
 

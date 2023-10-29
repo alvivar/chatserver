@@ -65,7 +65,7 @@ function startReconLog(currentTime, canReconnectCallback) {
 	reconLogId = setInterval(() => {
 		reconLogTimer += 1;
 
-		if (canReconnectCallback) {
+		if (!canReconnectCallback()) {
 			updateError(`Disconnected. Try refreshing the page.`);
 			clearReconLog();
 			return;

@@ -35,6 +35,20 @@ impl FileMap {
                 },
             ),
             (
+                "/js/ui.js",
+                FileMap {
+                    data: FileData::Str(include_str!("../web/js/ui.js")),
+                    mime_type: "application/javascript",
+                },
+            ),
+            (
+                "/js/pubsub.js",
+                FileMap {
+                    data: FileData::Str(include_str!("../web/js/pubsub.js")),
+                    mime_type: "application/javascript",
+                },
+            ),
+            (
                 "/style.css",
                 FileMap {
                     data: FileData::Str(include_str!("../web/style.css")),

@@ -1,46 +1,78 @@
-const connect = () => {
-	_socket = new WebSocket('ws://127.0.0.1:8080/ws');
+import { PubSub } from './pubsub.js';
 
-	_socket.addEventListener('open', () => {
-		clearReconLog();
-		updateError('Connected.');
+let socket = null;
+let transmisionComplete = true;
 
-		_reconnectionAttempts = 0;
-		_reconnectionDelay = _baseReconnectionDelay;
+const maxReconnectionAttempts = 30;
+const maxReconnectionDelay = 60000; // 1 minute
+const baseReconnectionDelay = 1000; // 1 second
+
+let lastAddress = '';
+let reconnectionAttempts = 0;
+let reconnectionDelay = baseReconnectionDelay;
+
+const SocketEvent = {
+	connected: 'socket.connected',
+	partialMessage: 'socket.partialMessage',
+	completeMessage: 'socket.completeMessage',
+	reconnection: 'socket.reconnection',
+	error: 'socket.error',
+};
+
+const connect = (address) => {
+	socket = new WebSocket(address);
+	lastAddress = address;
+
+	socket.addEventListener('open', () => {
+		PubSub.publish(SocketEvent.connected, true);
+		reconnectionAttempts = 0;
+		reconnectionDelay = baseReconnectionDelay;
 	});
 
-	_socket.addEventListener('message', (event) => {
+	socket.addEventListener('message', (event) => {
 		if (event.data === '\0') {
-			_transmisionComplete = true;
+			transmisionComplete = true;
 			return;
 		}
 
-		if (_transmisionComplete) {
-			newChat(event.data);
-
-			_transmisionComplete = false;
+		if (transmisionComplete) {
+			PubSub.publish(SocketEvent.completeMessage, event.data);
+			transmisionComplete = false;
 		} else {
-			appendText(event.data);
+			PubSub.publish(SocketEvent.partialMessage, event.data);
 		}
 	});
 
-	_socket.addEventListener('close', () => {
-		if (_reconnectionAttempts < _maxReconnectionAttempts) {
+	socket.addEventListener('close', () => {
+		if (reconnectionAttempts < maxReconnectionAttempts) {
 			setTimeout(() => {
-				connect();
-			}, _reconnectionDelay);
+				connect(lastAddress);
+			}, reconnectionDelay);
 
-			startReconLog(_reconnectionDelay);
+			PubSub.publish(SocketEvent.reconnection, reconnectionDelay);
 
-			_reconnectionAttempts += 1;
-			_reconnectionDelay = Math.min(
-				_maxReconnectionDelay,
-				_reconnectionDelay * 1.5
+			reconnectionAttempts += 1;
+			reconnectionDelay = Math.min(
+				maxReconnectionDelay,
+				reconnectionDelay * 1.5
 			);
 		}
 	});
 
-	_socket.addEventListener('error', (event) => {
+	socket.addEventListener('error', (event) => {
+		PubSub.publish(SocketEvent.error, event);
 		console.debug(`Error: ${event}`);
 	});
 };
+
+const send = (message) => {
+	if (socket.readyState === WebSocket.OPEN) {
+		socket.send(message);
+	}
+};
+
+const canReconnect = () => {
+	return reconnectionAttempts < maxReconnectionAttempts;
+};
+
+export { connect, send, canReconnect, SocketEvent };

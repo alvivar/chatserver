@@ -33,7 +33,7 @@ impl FileMap {
             _ if ext.eq_ignore_ascii_case("js") => "application/javascript",
             _ if ext.eq_ignore_ascii_case("css") => "text/css",
             _ if ext.eq_ignore_ascii_case("ico") => "image/x-icon",
-            _ => "application/octet-stream", // default MIME type
+            _ => "application/octet-stream", // Default MIME type.
         }
     }
 
@@ -41,12 +41,12 @@ impl FileMap {
         let path = "web";
         let files = [
             "index.html",
+            "favicon.ico",
+            "style.css",
+            "js/pubsub.js",
             "js/main.js",
             "js/socket.js",
             "js/ui.js",
-            "js/pubsub.js",
-            "style.css",
-            "favicon.ico",
         ];
 
         let mut filemap = HashMap::new();

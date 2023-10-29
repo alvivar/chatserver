@@ -24,7 +24,7 @@ async fn request_handler(
     mut request: Request<Body>,
     address: SocketAddr,
     state: SharedState,
-    static_files: Arc<HashMap<&str, FileMap>>,
+    static_files: Arc<HashMap<String, FileMap>>,
 ) -> Result<Response<Body>> {
     let mut uri = request.uri().path();
 
@@ -67,7 +67,6 @@ async fn request_handler(
 
 async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Body>> {
     let body = match data {
-        FileData::Str(s) => Body::from(*s),
         FileData::Bytes(b) => Body::from(b.to_vec()),
     };
 

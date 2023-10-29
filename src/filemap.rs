@@ -1,8 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::{self},
+    path::Path,
+    sync::Arc,
+};
 
 pub enum FileData {
-    Str(&'static str),
-    Bytes(&'static [u8]),
+    Bytes(Vec<u8>),
 }
 
 pub struct FileMap {
@@ -11,59 +15,49 @@ pub struct FileMap {
 }
 
 impl FileMap {
-    pub fn static_files() -> Arc<HashMap<&'static str, FileMap>> {
-        let filemap: HashMap<&str, FileMap> = [
-            (
-                "/index.html",
-                FileMap {
-                    data: FileData::Str(include_str!("../web/index.html")),
-                    mime_type: "text/html",
-                },
-            ),
-            (
-                "/js/main.js",
-                FileMap {
-                    data: FileData::Str(include_str!("../web/js/main.js")),
-                    mime_type: "application/javascript",
-                },
-            ),
-            (
-                "/js/socket.js",
-                FileMap {
-                    data: FileData::Str(include_str!("../web/js/socket.js")),
-                    mime_type: "application/javascript",
-                },
-            ),
-            (
-                "/js/ui.js",
-                FileMap {
-                    data: FileData::Str(include_str!("../web/js/ui.js")),
-                    mime_type: "application/javascript",
-                },
-            ),
-            (
-                "/js/pubsub.js",
-                FileMap {
-                    data: FileData::Str(include_str!("../web/js/pubsub.js")),
-                    mime_type: "application/javascript",
-                },
-            ),
-            (
-                "/style.css",
-                FileMap {
-                    data: FileData::Str(include_str!("../web/style.css")),
-                    mime_type: "text/css",
-                },
-            ),
-            (
-                "/favicon.ico",
-                FileMap {
-                    data: FileData::Bytes(include_bytes!("../web/favicon.ico")),
-                    mime_type: "image/x-icon",
-                },
-            ),
-        ]
-        .into();
+    fn get_data(path: &str, file: &str) -> Result<FileData, std::io::Error> {
+        let path = Path::new(path).join(file);
+        let data = fs::read(path)?;
+
+        Ok(FileData::Bytes(data))
+    }
+
+    fn get_mime_type(path: &str) -> &'static str {
+        let ext = Path::new(path)
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or("");
+
+        match ext {
+            _ if ext.eq_ignore_ascii_case("html") => "text/html",
+            _ if ext.eq_ignore_ascii_case("js") => "application/javascript",
+            _ if ext.eq_ignore_ascii_case("css") => "text/css",
+            _ if ext.eq_ignore_ascii_case("ico") => "image/x-icon",
+            _ => "application/octet-stream", // default MIME type
+        }
+    }
+
+    pub fn static_files() -> Arc<HashMap<String, FileMap>> {
+        let path = "web";
+        let files = [
+            "index.html",
+            "js/main.js",
+            "js/socket.js",
+            "js/ui.js",
+            "js/pubsub.js",
+            "style.css",
+            "favicon.ico",
+        ];
+
+        let mut filemap = HashMap::new();
+
+        for &file in &files {
+            let route = format!("/{}", file);
+            let data = Self::get_data(path, file).unwrap();
+            let mime_type = Self::get_mime_type(file);
+
+            filemap.insert(route, FileMap { data, mime_type });
+        }
 
         Arc::new(filemap)
     }

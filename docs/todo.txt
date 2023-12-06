@@ -14,14 +14,13 @@ December 6, 2023
     x Updated copy to clipboard functionality to take the formatted text.
     x Implemented setting environmental variables from the ".env" file.
     x Improved location.reload() to only occur in development mode.
-    x Added +1.
     x Improved copy-paste functionality, with auto-adjusting scrollbar on input.
     x Added copying to clipboard on click.
     x Optimized code.
     x Worked on unfinished prompt storage and potential retrieval for each connected client.
     x Made color improvements.
     x General polishing of the code.
-    x Enhanced the importance and color of prompts.
+    x Enhanced the importance and colors on the client.
 
 October 28, 2023
     x Migration to modules!

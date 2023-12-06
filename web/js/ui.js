@@ -13,10 +13,25 @@ const UIEvent = {
     sendMessage: "ui.sendMessage",
 };
 
+const preprompt = document.getElementById("preprompt");
+const input = document.getElementById("input");
+
 // UI
 
-document.getElementById("input").addEventListener("keydown", (event) => {
+input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") sendMessage();
+});
+
+input.addEventListener("input", () => {
+    input.style.overflow = "hidden";
+    input.style.height = "inherit";
+    input.style.height = `${input.scrollHeight}px`;
+});
+
+preprompt.addEventListener("input", () => {
+    preprompt.style.overflow = "hidden";
+    preprompt.style.height = "inherit";
+    preprompt.style.height = `${preprompt.scrollHeight}px`;
 });
 
 document.getElementById("send").addEventListener("click", () => {
@@ -24,14 +39,14 @@ document.getElementById("send").addEventListener("click", () => {
 });
 
 function sendMessage() {
-    const input = document.getElementById("input");
     const message = input.value.trim();
     input.value = "";
+    input.style.height = "inherit";
 
-    let name = document.getElementById("name").value.trim();
+    let prompt = preprompt.value.trim();
 
     if (message !== "") {
-        PubSub.publish(UIEvent.sendMessage, `${name} ${message}`);
+        PubSub.publish(UIEvent.sendMessage, `${prompt} ${message}`);
     }
 }
 

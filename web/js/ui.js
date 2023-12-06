@@ -7,92 +7,95 @@ let reconLogId = -1;
 let reconLogTimer = 0;
 
 const UIEvent = {
-  sendMessage: "ui.sendMessage",
+    sendMessage: "ui.sendMessage",
 };
 
 // UI
 
 document.getElementById("input").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") sendMessage();
+    if (event.key === "Enter") sendMessage();
 });
 
 document.getElementById("send").addEventListener("click", () => {
-  sendMessage();
+    sendMessage();
 });
 
 function sendMessage() {
-  const input = document.getElementById("input");
-  const message = input.value.trim();
-  input.value = "";
+    const input = document.getElementById("input");
+    const message = input.value.trim();
+    input.value = "";
 
-  let name = document.getElementById("name").value.trim();
+    let name = document.getElementById("name").value.trim();
 
-  if (message !== "") {
-    PubSub.publish(UIEvent.sendMessage, `${name} ${message}`);
-  }
+    if (message !== "") {
+        PubSub.publish(UIEvent.sendMessage, `${name} ${message}`);
+    }
 }
 
 function messageHtml(message) {
-  const p = document.createElement("p");
-  p.classList.add("py-4");
-  p.classList.add("whitespace-pre-line");
-  p.textContent = message;
-  return p;
+    const p = document.createElement("p");
+    p.classList.add("bg-blue-100");
+    p.classList.add("p-4");
+    p.classList.add("my-2");
+    p.classList.add("whitespace-pre-line");
+    p.classList.add("rounded-lg");
+    p.textContent = message;
+    return p;
 }
 
 function appendText(text) {
-  messages.firstChild.appendChild(document.createTextNode(text));
+    messages.firstChild.appendChild(document.createTextNode(text));
 }
 
 function newChat(text) {
-  messages.insertBefore(messageHtml(text), messages.firstChild);
+    messages.insertBefore(messageHtml(text), messages.firstChild);
 }
 
 function updateError(text) {
-  if (pError) {
-    pError.textContent = text;
-    messages.insertBefore(pError, messages.firstChild);
-  } else {
-    const p = messageHtml(text);
-    p.id = "error";
-    messages.insertBefore(p, messages.firstChild);
-  }
+    if (pError) {
+        pError.textContent = text;
+        messages.insertBefore(pError, messages.firstChild);
+    } else {
+        const p = messageHtml(text);
+        p.id = "error";
+        messages.insertBefore(p, messages.firstChild);
+    }
 }
 
 function startReconLog(currentTime, canReconnectCallback) {
-  clearReconLog();
+    clearReconLog();
 
-  reconLogId = setInterval(() => {
-    reconLogTimer += 1;
+    reconLogId = setInterval(() => {
+        reconLogTimer += 1;
 
-    if (!canReconnectCallback()) {
-      updateError(`Disconnected. Try refreshing the page.`);
-      clearReconLog();
-      return;
-    }
+        if (!canReconnectCallback()) {
+            updateError(`Disconnected. Try refreshing the page.`);
+            clearReconLog();
+            return;
+        }
 
-    let time = currentTime / 1000 - reconLogTimer;
-    time = Math.max(0, Math.round(time));
+        let time = currentTime / 1000 - reconLogTimer;
+        time = Math.max(0, Math.round(time));
 
-    let message = `Disconnected. Reconnecting in  ${time} seconds...`;
-    if (time === 0) {
-      message = `Disconnected. Reconnecting...`;
-    }
+        let message = `Disconnected. Reconnecting in  ${time} seconds...`;
+        if (time === 0) {
+            message = `Disconnected. Reconnecting...`;
+        }
 
-    updateError(message);
-  }, 1000);
+        updateError(message);
+    }, 1000);
 }
 
 function clearReconLog() {
-  clearInterval(reconLogId);
-  reconLogTimer = 0;
+    clearInterval(reconLogId);
+    reconLogTimer = 0;
 }
 
 export {
-  appendText,
-  newChat,
-  updateError,
-  startReconLog,
-  clearReconLog,
-  UIEvent,
+    appendText,
+    newChat,
+    updateError,
+    startReconLog,
+    clearReconLog,
+    UIEvent,
 };

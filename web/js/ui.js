@@ -43,6 +43,19 @@ function messageHtml(message) {
     p.classList.add("whitespace-pre-line");
     p.classList.add("rounded-lg");
     p.textContent = message;
+
+    p.addEventListener("click", () => {
+        let textToCopy = p.innerText;
+        navigator.clipboard
+            .writeText(textToCopy)
+            .then(() => {
+                console.log(`Copied: ${textToCopy}`);
+            })
+            .catch((err) => {
+                console.error(`Error copying: ${err}`);
+            });
+    });
+
     return p;
 }
 

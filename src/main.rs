@@ -1,10 +1,11 @@
-use anyhow::Result;
 use async_openai::{
     config::OpenAIConfig,
     types::{ChatCompletionRequestMessageArgs, CreateChatCompletionRequestArgs, Role},
     Client,
 };
 use fastwebsockets::{upgrade::upgrade, FragmentCollector, OpCode, WebSocketError};
+
+use anyhow::Result;
 use futures::StreamExt;
 use hyper::{server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Request, Response};
 use tokio::{
@@ -12,7 +13,13 @@ use tokio::{
     sync::{mpsc, RwLock},
 };
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashMap,
+    env, fs,
+    io::{self},
+    net::SocketAddr,
+    sync::Arc,
+};
 
 mod data;
 use data::{Message, SharedState, State};
@@ -179,6 +186,23 @@ async fn handle_ws(
     Ok(())
 }
 
+fn set_env_from_file(file_path: &str) -> io::Result<()> {
+    let contents = fs::read_to_string(file_path)?;
+
+    for line in contents.lines() {
+        let parts: Vec<&str> = line.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            let key = parts[0].trim();
+            let value = parts[1].trim();
+            env::set_var(key, value);
+        } else {
+            eprintln!("Warning: Skipping invalid line: {}", line);
+        }
+    }
+
+    Ok(())
+}
+
 async fn process_openai_request(
     prompt: String,
     openai_to_ws_tx: mpsc::Sender<String>,
@@ -204,7 +228,7 @@ async fn process_openai_request(
                 }
             }
             Err(err) => {
-                println!("OpenAI Error: {}", err);
+                eprintln!("OpenAI Error: {}", err);
 
                 openai_to_ws_tx
                     .send(format!("OpenAI Error: {}", err))
@@ -222,6 +246,8 @@ async fn process_openai_request(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    set_env_from_file(".env")?;
+
     let address = SocketAddr::from(([127, 0, 0, 1], 8080));
     let listener = TcpListener::bind(address).await?;
 
@@ -249,7 +275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .with_upgrades()
                 .await
             {
-                println!("Serve Connection Error: {:?}", err);
+                eprintln!("Serve Connection Error: {:?}", err);
             }
         });
     }

@@ -12,67 +12,76 @@ let reconnectionAttempts = 0;
 let reconnectionDelay = baseReconnectionDelay;
 
 const SocketEvent = {
-  connected: "socket.connected",
-  partialMessage: "socket.partialMessage",
-  completeMessage: "socket.completeMessage",
-  reconnection: "socket.reconnection",
-  error: "socket.error",
+    connected: "socket.connected",
+    partialMessage: "socket.partialMessage",
+    completeMessage: "socket.completeMessage",
+    reconnection: "socket.reconnection",
+    error: "socket.error",
 };
 
 const connect = (address) => {
-  socket = new WebSocket(address);
-  lastAddress = address;
+    socket = new WebSocket(address);
+    lastAddress = address;
 
-  socket.addEventListener("open", () => {
-    PubSub.publish(SocketEvent.connected, true);
-    reconnectionAttempts = 0;
-    reconnectionDelay = baseReconnectionDelay;
-  });
+    socket.addEventListener("open", () => {
+        PubSub.publish(SocketEvent.connected, true);
 
-  socket.addEventListener("message", (event) => {
-    if (event.data === "\0") {
-      transmisionComplete = true;
-      return;
-    }
+        if (reconnectionAttempts > 0) {
+            // @todo We may need to make changes to the code and want to reload
+            // it. However, this should not be included in the production
+            // version. We should find a way to detect an environment variable
+            // for development mode instead.
+            location.reload();
+        }
 
-    if (transmisionComplete) {
-      PubSub.publish(SocketEvent.completeMessage, event.data);
-      transmisionComplete = false;
-    } else {
-      PubSub.publish(SocketEvent.partialMessage, event.data);
-    }
-  });
+        reconnectionAttempts = 0;
+        reconnectionDelay = baseReconnectionDelay;
+    });
 
-  socket.addEventListener("close", () => {
-    if (reconnectionAttempts < maxReconnectionAttempts) {
-      setTimeout(() => {
-        connect(lastAddress);
-      }, reconnectionDelay);
+    socket.addEventListener("message", (event) => {
+        if (event.data === "\0") {
+            transmisionComplete = true;
+            return;
+        }
 
-      PubSub.publish(SocketEvent.reconnection, reconnectionDelay);
+        if (transmisionComplete) {
+            PubSub.publish(SocketEvent.completeMessage, event.data);
+            transmisionComplete = false;
+        } else {
+            PubSub.publish(SocketEvent.partialMessage, event.data);
+        }
+    });
 
-      reconnectionAttempts += 1;
-      reconnectionDelay = Math.min(
-        maxReconnectionDelay,
-        reconnectionDelay * 1.5
-      );
-    }
-  });
+    socket.addEventListener("close", () => {
+        if (reconnectionAttempts < maxReconnectionAttempts) {
+            setTimeout(() => {
+                connect(lastAddress);
+            }, reconnectionDelay);
 
-  socket.addEventListener("error", (event) => {
-    PubSub.publish(SocketEvent.error, event);
-    console.debug(`Error: ${event}`);
-  });
+            PubSub.publish(SocketEvent.reconnection, reconnectionDelay);
+
+            reconnectionAttempts += 1;
+            reconnectionDelay = Math.min(
+                maxReconnectionDelay,
+                reconnectionDelay * 1.5
+            );
+        }
+    });
+
+    socket.addEventListener("error", (event) => {
+        PubSub.publish(SocketEvent.error, event);
+        console.debug(`Error: ${event}`);
+    });
 };
 
 const send = (message) => {
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(message);
-  }
+    if (socket.readyState === WebSocket.OPEN) {
+        socket.send(message);
+    }
 };
 
 const canReconnect = () => {
-  return reconnectionAttempts < maxReconnectionAttempts;
+    return reconnectionAttempts < maxReconnectionAttempts;
 };
 
 export { connect, send, canReconnect, SocketEvent };

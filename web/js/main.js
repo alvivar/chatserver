@@ -24,7 +24,6 @@ PubSub.subscribe(SocketEvent.completeMessage, (message) => {
 
 PubSub.subscribe(SocketEvent.reconnection, (delay) => {
     startReconLog(delay, canReconnect);
-    location.reload();
 });
 
 PubSub.subscribe(UIEvent.sendMessage, (message) => {

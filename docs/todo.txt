@@ -10,13 +10,18 @@
 
 
 December 6, 2023
-    x Added copy-paste functionality when clicking a paragraph
-    x Auto-adjusted the scrollbar on input
-    x Added copying to clipboard on click
-    x Optimized the codebase
-    x Started implementing prompt storage and retrieval for connected clients
-    x Improved color scheme
-    x General polish and improvements to prompts
+    x Added functionality to reload and refresh cache after a reconnection, useful for development with cargo watch.
+    x Updated copy to clipboard functionality to take the formatted text.
+    x Implemented setting environmental variables from the ".env" file.
+    x Improved location.reload() to only occur in development mode.
+    x Added +1.
+    x Improved copy-paste functionality, with auto-adjusting scrollbar on input.
+    x Added copying to clipboard on click.
+    x Optimized code.
+    x Worked on unfinished prompt storage and potential retrieval for each connected client.
+    x Made color improvements.
+    x General polishing of the code.
+    x Enhanced the importance and color of prompts.
 
 October 28, 2023
     x Migration to modules!

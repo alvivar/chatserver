@@ -78,6 +78,39 @@ async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response
     Ok(response)
 }
 
+async fn store_prompt(
+    address: SocketAddr,
+    prompt: String,
+    prompts: &Arc<RwLock<HashMap<SocketAddr, Vec<String>>>>,
+) {
+    let mut prompts = prompts.write().await;
+    let prompt_list = prompts.entry(address).or_insert(Vec::new());
+    prompt_list.push(prompt);
+}
+
+async fn get_prompts(
+    address: SocketAddr,
+    prompts: Arc<RwLock<HashMap<SocketAddr, Vec<String>>>>,
+    num_prompts: usize,
+) -> Vec<String> {
+    let prompts = prompts.read().await;
+
+    if let Some(prompt_list) = prompts.get(&address) {
+        let len = prompt_list.len();
+
+        // If there are fewer prompts than requested, return all of them.
+        if len <= num_prompts {
+            return prompt_list.clone();
+        }
+
+        // Otherwise, return the last `num_prompts`.
+        return prompt_list[len - num_prompts..].to_vec();
+    }
+
+    // Return an empty Vec if no prompts are found for the address.
+    Vec::new()
+}
+
 async fn handle_ws(
     mut ws: FragmentCollector<Upgraded>,
     address: SocketAddr,
@@ -94,6 +127,9 @@ async fn handle_ws(
     let (openai_to_ws_tx, mut openai_to_ws_rx) = mpsc::channel::<String>(128);
     let client = Client::new();
 
+    let prompts: HashMap<SocketAddr, Vec<String>> = HashMap::new();
+    let prompts = Arc::new(RwLock::new(prompts));
+
     loop {
         tokio::select! {
             frame = ws.read_frame() => {
@@ -105,6 +141,7 @@ async fn handle_ws(
                     }
                     OpCode::Text => {
                         let prompt = String::from_utf8(frame.payload.to_vec()).unwrap();
+                        store_prompt(address, prompt.clone(), &prompts).await;
 
                         let message = Message::Text(prompt.clone());
                         ws.write_frame(message.to_frame()).await?;
@@ -148,7 +185,7 @@ async fn process_openai_request(
     client: Client<OpenAIConfig>,
 ) -> anyhow::Result<()> {
     let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-4")
+        .model("gpt-3.5-turbo")
         .max_tokens(512u16)
         .messages([ChatCompletionRequestMessageArgs::default()
             .content(&prompt)

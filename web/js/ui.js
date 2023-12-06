@@ -3,6 +3,9 @@ import { PubSub } from "./pubsub.js";
 const messages = document.getElementById("messages");
 const pError = messages.querySelector("p#error");
 
+const userBGColor = "bg-blue-200";
+const systemBGColor = "bg-indigo-200";
+
 let reconLogId = -1;
 let reconLogTimer = 0;
 
@@ -34,7 +37,7 @@ function sendMessage() {
 
 function messageHtml(message) {
     const p = document.createElement("p");
-    p.classList.add("bg-blue-100");
+    p.classList.add(userBGColor);
     p.classList.add("p-4");
     p.classList.add("my-2");
     p.classList.add("whitespace-pre-line");
@@ -45,6 +48,12 @@ function messageHtml(message) {
 
 function appendText(text) {
     messages.firstChild.appendChild(document.createTextNode(text));
+
+    if (messages.firstChild.classList.contains(userBGColor))
+        messages.firstChild.classList.remove(userBGColor);
+
+    if (!messages.firstChild.classList.contains(systemBGColor))
+        messages.firstChild.classList.add(systemBGColor);
 }
 
 function newChat(text) {

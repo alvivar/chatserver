@@ -42,6 +42,7 @@ function sendMessage() {
     const message = input.value.trim();
     input.value = "";
     input.style.height = "inherit";
+    window.scrollTo(0, 0);
 
     let prompt = preprompt.value.trim();
 
@@ -60,7 +61,12 @@ function messageHtml(message) {
     p.textContent = message;
 
     p.addEventListener("click", () => {
-        let textToCopy = p.innerText;
+        let textToCopy = p.innerHTML;
+
+        var tempDiv = document.createElement("div");
+        tempDiv.innerHTML = textToCopy;
+        textToCopy = tempDiv.innerText;
+
         navigator.clipboard
             .writeText(textToCopy)
             .then(() => {

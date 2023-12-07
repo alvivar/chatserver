@@ -1,3 +1,4 @@
 .env
+/build
 /target
 /web/node_modules

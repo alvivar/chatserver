@@ -1,5 +1,8 @@
 import { PubSub } from "./pubsub.js";
 
+const preprompt = document.getElementById("preprompt");
+const input = document.getElementById("input");
+const sendButton = document.getElementById("send");
 const messages = document.getElementById("messages");
 const pError = messages.querySelector("p#error");
 
@@ -13,41 +16,53 @@ const UIEvent = {
     sendMessage: "ui.sendMessage",
 };
 
-const preprompt = document.getElementById("preprompt");
-const input = document.getElementById("input");
+// Events
 
-// UI
-
-input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") sendMessage();
+preprompt.addEventListener("keydown", (event) => {
+    sendOnKeyPress(event);
+    console.log("preprompt keydown");
 });
 
-input.addEventListener("input", () => {
-    input.style.overflow = "hidden";
-    input.style.height = "inherit";
-    input.style.height = `${input.scrollHeight}px`;
+input.addEventListener("keydown", (event) => {
+    sendOnKeyPress(event);
 });
 
 preprompt.addEventListener("input", () => {
-    preprompt.style.overflow = "hidden";
-    preprompt.style.height = "inherit";
-    preprompt.style.height = `${preprompt.scrollHeight}px`;
+    adjustTextareaHeight(preprompt);
 });
 
-document.getElementById("send").addEventListener("click", () => {
+input.addEventListener("input", () => {
+    adjustTextareaHeight(input);
+});
+
+sendButton.addEventListener("click", () => {
     sendMessage();
 });
+
+// Functions
+
+function sendOnKeyPress(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+function adjustTextareaHeight(textarea) {
+    textarea.style.height = "4px"; // Temporarily shrink the height to force a scrollHeight recalculation.
+    textarea.style.height = textarea.scrollHeight + 4 + "px";
+}
 
 function sendMessage() {
     const message = input.value.trim();
     input.value = "";
-    input.style.height = "inherit";
+    input.style.height = preprompt.style.height;
     window.scrollTo(0, 0);
 
     let prompt = preprompt.value.trim();
 
     if (message !== "") {
-        PubSub.publish(UIEvent.sendMessage, `${prompt} ${message}`);
+        PubSub.publish(UIEvent.sendMessage, `${prompt} ${message}`.trim());
     }
 }
 
@@ -61,16 +76,19 @@ function messageHtml(message) {
     p.textContent = message;
 
     p.addEventListener("click", () => {
-        let textToCopy = p.innerHTML;
+        let toCopy = p.innerHTML;
 
-        var tempDiv = document.createElement("div");
-        tempDiv.innerHTML = textToCopy;
-        textToCopy = tempDiv.innerText;
+        // Here's a simple trick to retrieve the inner text of an element that
+        // contains HTML entities. This trick essentially involves copying a
+        // formatted text.
+        var formatDiv = document.createElement("div");
+        formatDiv.innerHTML = toCopy;
+        toCopy = formatDiv.innerText;
 
         navigator.clipboard
-            .writeText(textToCopy)
+            .writeText(toCopy)
             .then(() => {
-                console.log(`Copied: ${textToCopy}`);
+                console.log(`Copied: ${toCopy}`);
             })
             .catch((err) => {
                 console.error(`Error copying: ${err}`);

@@ -8,6 +8,11 @@
     Should filemap.rs dynamically select files?
 
 
+December 16, 2023
+    x Created alert.js, an absolute modal to communicate quick messages over the mouse cursor.
+    x Copying to the clipboard has an alert.
+    x Welcome alert on the first interaction.
+
 December 7, 2023
     x Improved auto scroll.
     x Shift is used to create multiline, enter sends the message.

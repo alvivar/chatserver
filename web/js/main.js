@@ -1,4 +1,5 @@
 import { PubSub } from "./pubsub.js";
+import { setAlert } from "./alert.js";
 import { connect, send, canReconnect, SocketEvent } from "./socket.js";
 import {
     appendText,
@@ -8,6 +9,8 @@ import {
     clearReconLog,
     UIEvent,
 } from "./ui.js";
+
+// Subscriptions
 
 PubSub.subscribe(SocketEvent.connected, () => {
     clearReconLog();
@@ -30,4 +33,18 @@ PubSub.subscribe(UIEvent.sendMessage, (message) => {
     send(message);
 });
 
-connect("ws://127.0.0.1:8080/ws");
+PubSub.subscribe(UIEvent.copiedToClipboard, (wordsCount) => {
+    setAlert(`Copied ${wordsCount} words to clipboard!`);
+});
+
+// Functions
+
+function welcome() {
+    setAlert("Welcome!");
+    document.removeEventListener("mousemove", welcome);
+}
+
+// Main
+
+document.addEventListener("mousemove", welcome);
+connect("ws://localhost:8080/ws");

@@ -47,6 +47,7 @@ impl FileMap {
             "js/main.js",
             "js/socket.js",
             "js/ui.js",
+            "js/alert.js",
         ];
 
         let mut filemap = HashMap::new();

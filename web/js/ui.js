@@ -14,6 +14,7 @@ let reconLogTimer = 0;
 
 const UIEvent = {
     sendMessage: "ui.sendMessage",
+    copiedToClipboard: "ui.copiedToClipboard",
 };
 
 // Events
@@ -41,6 +42,10 @@ sendButton.addEventListener("click", () => {
 
 // Functions
 
+function countWords(str) {
+    return str.trim().split(/\s+/).length;
+}
+
 function sendOnKeyPress(event) {
     if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
@@ -55,14 +60,16 @@ function adjustTextareaHeight(textarea) {
 
 function sendMessage() {
     const message = input.value.trim();
+
     input.value = "";
     input.style.height = preprompt.style.height;
     window.scrollTo(0, 0);
 
     let prompt = preprompt.value.trim();
+    let complete_message = `${prompt} ${message}`.trim();
 
-    if (message !== "") {
-        PubSub.publish(UIEvent.sendMessage, `${prompt} ${message}`.trim());
+    if (complete_message !== "") {
+        PubSub.publish(UIEvent.sendMessage, complete_message);
     }
 }
 
@@ -89,6 +96,8 @@ function messageHtml(message) {
             .writeText(toCopy)
             .then(() => {
                 console.log(`Copied: ${toCopy}`);
+                const words = countWords(toCopy);
+                PubSub.publish(UIEvent.copiedToClipboard, words);
             })
             .catch((err) => {
                 console.error(`Error copying: ${err}`);

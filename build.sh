@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Recreates a build directory and copy the necessary files to run the server as
-# stand alone.
+# Recreates a ./dist directory and copies the necessary files to run the server
+# as a standalone.
 
 cargo build --release
 cd web/

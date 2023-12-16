@@ -21,7 +21,6 @@ const UIEvent = {
 
 preprompt.addEventListener("keydown", (event) => {
     sendOnKeyPress(event);
-    console.log("preprompt keydown");
 });
 
 input.addEventListener("keydown", (event) => {

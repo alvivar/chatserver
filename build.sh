@@ -19,7 +19,4 @@ cp web/style.css build/web/
 cp web/favicon.ico build/web/
 
 mkdir -p build/web/js
-cp web/js/main.js build/web/js/
-cp web/js/pubsub.js build/web/js/
-cp web/js/socket.js build/web/js/
-cp web/js/ui.js build/web/js/
+cp web/js/*.js build/web/js/

@@ -209,7 +209,7 @@ async fn process_openai_request(
     client: Client<OpenAIConfig>,
 ) -> anyhow::Result<()> {
     let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-3.5-turbo")
+        .model("gpt-3.5-turbo-1106")
         .max_tokens(512u16)
         .messages([ChatCompletionRequestMessageArgs::default()
             .content(&prompt)

@@ -59,22 +59,28 @@ function adjustTextareaHeight(textarea) {
 
 function sendMessage() {
     const message = input.value.trim();
+    const prompt = preprompt.value.trim();
 
     input.value = "";
     input.style.height = preprompt.style.height;
     window.scrollTo(0, 0);
 
-    let prompt = preprompt.value.trim();
-    let complete_message = `${prompt} ${message}`.trim();
+    const completeMessage = prompt.includes("<!>")
+        ? prompt.replace("<!>", message)
+        : `${prompt} ${message}`.trim();
 
-    if (complete_message !== "") {
-        PubSub.publish(UIEvent.sendMessage, complete_message);
+    if (completeMessage.length === 0) {
+        return;
     }
+
+    PubSub.publish(UIEvent.sendMessage, completeMessage);
 }
 
 function messageHtml(message) {
     const p = document.createElement("p");
     p.classList.add(userBGColor);
+    p.classList.add("hover:text-slate-50");
+    p.classList.add("hover:bg-blue-400");
     p.classList.add("p-4");
     p.classList.add("my-2");
     p.classList.add("whitespace-pre-line");
@@ -94,12 +100,11 @@ function messageHtml(message) {
         navigator.clipboard
             .writeText(toCopy)
             .then(() => {
-                console.log(`Copied: ${toCopy}`);
-                const words = countWords(toCopy);
-                PubSub.publish(UIEvent.copiedToClipboard, words);
+                const count = countWords(toCopy);
+                PubSub.publish(UIEvent.copiedToClipboard, count);
             })
             .catch((err) => {
-                console.error(`Error copying: ${err}`);
+                console.error(`Error copying to clipboard: ${err}`);
             });
     });
 

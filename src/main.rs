@@ -56,6 +56,7 @@ async fn request_handler(
 
             Ok(response)
         }
+
         _ => {
             if let Some(map) = static_files.get(uri) {
                 let response = serve_file(&map.data, map.mime_type).await?;
@@ -85,14 +86,145 @@ async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response
     Ok(response)
 }
 
+async fn handle_ws(
+    mut ws: FragmentCollector<Upgraded>,
+    address: SocketAddr,
+    state: &SharedState,
+) -> Result<(), WebSocketError> {
+    let (tx, mut rx) = mpsc::channel(128);
+    {
+        let mut state = state.write().await;
+        state.clients.insert(address, tx);
+    }
+
+    println!("{} New", address);
+
+    let (openai_ws_tx, mut openai_ws_rx) = mpsc::channel::<String>(128);
+    let client = Client::new();
+
+    let prompts: HashMap<SocketAddr, Vec<String>> = HashMap::new();
+    let prompts = Arc::new(RwLock::new(prompts));
+    let model: Arc<RwLock<String>> = Arc::new(RwLock::new("gpt-3.5-turbo-1106".into()));
+
+    loop {
+        tokio::select! {
+            frame = ws.read_frame() => {
+                let frame = frame?;
+                match frame.opcode {
+                    OpCode::Close => {
+                        println!("{} Closed", address);
+                        break;
+                    }
+
+                    OpCode::Text => {
+                        let prompt = String::from_utf8(frame.payload.to_vec()).unwrap();
+                        store_prompt(address, prompt.clone(), &prompts).await;
+
+                        let message = Message::Text(prompt.clone());
+                        ws.write_frame(message.to_frame()).await?;
+
+                        let eof = Message::Text("\0".into());
+                        ws.write_frame(eof.to_frame()).await?;
+
+                        // Commands.
+
+                        let commands = extract_commands(&prompt);
+
+                        let mut chosen_model = { model.read().await.clone() };
+                        if let Some(model_name) = commands.get("model") {
+                            chosen_model = model_name.clone();
+
+                            {
+                                let mut model = model.write().await;
+                                *model = model_name.clone();
+                            }
+                        }
+
+                        tokio::spawn(process_openai_request(
+                            prompt,
+                            openai_ws_tx.clone(),
+                            client.clone(),
+                            chosen_model,
+                        ));
+                    }
+
+                    _ => {}
+                }
+            },
+
+            message = openai_ws_rx.recv() => {
+                if let Some(message) = message {
+                    let message = Message::Text(message);
+                    ws.write_frame(message.to_frame()).await?;
+                } else {
+                    break;
+                }
+            },
+
+            frame = rx.recv() => {
+                if let Some(frame) = frame {
+                    ws.write_frame(frame.to_frame()).await?;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn process_openai_request(
+    prompt: String,
+    openai_to_ws_tx: mpsc::Sender<String>,
+    client: Client<OpenAIConfig>,
+    model: String,
+) -> anyhow::Result<()> {
+    let request = CreateChatCompletionRequestArgs::default()
+        .model(model)
+        .max_tokens(512u16)
+        .messages([ChatCompletionRequestMessageArgs::default()
+            .content(&prompt)
+            .role(Role::User)
+            .build()?])
+        .build()?;
+
+    let mut stream = client.chat().create_stream(request).await?;
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(response) => {
+                for chat_choice in response.choices.iter() {
+                    if let Some(ref content) = chat_choice.delta.content {
+                        openai_to_ws_tx.send(content.clone()).await.unwrap();
+                    }
+                }
+            }
+
+            Err(err) => {
+                eprintln!("OpenAI Error: {}", err);
+
+                openai_to_ws_tx
+                    .send(format!("OpenAI Error: {}", err))
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+
+    // This means that the transmission is over.
+    openai_to_ws_tx.send("\0".into()).await.unwrap();
+
+    Ok(())
+}
+
 async fn store_prompt(
     address: SocketAddr,
     prompt: String,
     prompts: &Arc<RwLock<HashMap<SocketAddr, Vec<String>>>>,
 ) {
     let mut prompts = prompts.write().await;
-    let prompt_list = prompts.entry(address).or_insert(Vec::new());
-    prompt_list.push(prompt);
+    let prompts = prompts.entry(address).or_insert(Vec::new());
+    prompts.push(prompt);
 }
 
 async fn get_prompts(
@@ -118,74 +250,6 @@ async fn get_prompts(
     Vec::new()
 }
 
-async fn handle_ws(
-    mut ws: FragmentCollector<Upgraded>,
-    address: SocketAddr,
-    state: &SharedState,
-) -> Result<(), WebSocketError> {
-    let (tx, mut rx) = mpsc::channel(128);
-    {
-        let mut state = state.write().await;
-        state.clients.insert(address, tx);
-    }
-
-    println!("{} New", address);
-
-    let (openai_to_ws_tx, mut openai_to_ws_rx) = mpsc::channel::<String>(128);
-    let client = Client::new();
-
-    let prompts: HashMap<SocketAddr, Vec<String>> = HashMap::new();
-    let prompts = Arc::new(RwLock::new(prompts));
-
-    loop {
-        tokio::select! {
-            frame = ws.read_frame() => {
-                let frame = frame?;
-                match frame.opcode {
-                    OpCode::Close => {
-                        println!("{} Closed", address);
-                        break;
-                    }
-                    OpCode::Text => {
-                        let prompt = String::from_utf8(frame.payload.to_vec()).unwrap();
-                        store_prompt(address, prompt.clone(), &prompts).await;
-
-                        let message = Message::Text(prompt.clone());
-                        ws.write_frame(message.to_frame()).await?;
-
-                        let eof = Message::Text("\0".into());
-                        ws.write_frame(eof.to_frame()).await?;
-
-                        tokio::spawn(process_openai_request(
-                            prompt,
-                            openai_to_ws_tx.clone(),
-                            client.clone(),
-                        ));
-                    }
-                    _ => {}
-                }
-            },
-            message = openai_to_ws_rx.recv() => {
-                if let Some(message) = message {
-                    let message = Message::Text(message);
-                    ws.write_frame(message.to_frame()).await?;
-                } else {
-                    break;
-                }
-            },
-            frame = rx.recv() => {
-                if let Some(frame) = frame {
-                    ws.write_frame(frame.to_frame()).await?;
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
 fn set_env_from_file(file_path: &str) -> io::Result<()> {
     let contents = fs::read_to_string(file_path)?;
 
@@ -203,45 +267,21 @@ fn set_env_from_file(file_path: &str) -> io::Result<()> {
     Ok(())
 }
 
-async fn process_openai_request(
-    prompt: String,
-    openai_to_ws_tx: mpsc::Sender<String>,
-    client: Client<OpenAIConfig>,
-) -> anyhow::Result<()> {
-    let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-3.5-turbo-1106")
-        .max_tokens(512u16)
-        .messages([ChatCompletionRequestMessageArgs::default()
-            .content(&prompt)
-            .role(Role::User)
-            .build()?])
-        .build()?;
+fn extract_commands(input: &str) -> HashMap<String, String> {
+    let mut commands = HashMap::new();
+    let mut iter = input.split_whitespace().peekable();
 
-    let mut stream = client.chat().create_stream(request).await?;
-    while let Some(result) = stream.next().await {
-        match result {
-            Ok(response) => {
-                for chat_choice in response.choices.iter() {
-                    if let Some(ref content) = chat_choice.delta.content {
-                        openai_to_ws_tx.send(content.clone()).await.unwrap();
-                    }
-                }
+    while let Some(word) = iter.next() {
+        if word.starts_with('!') && word.len() > 1 {
+            if let Some(&next_word) = iter.peek() {
+                let command = &word[1..];
+                commands.insert(command.to_string(), next_word.to_string());
             }
-            Err(err) => {
-                eprintln!("OpenAI Error: {}", err);
-
-                openai_to_ws_tx
-                    .send(format!("OpenAI Error: {}", err))
-                    .await
-                    .unwrap();
-            }
+            iter.next(); // Skip the next word as it is already used as a value.
         }
     }
 
-    // This means that the transmission is over.
-    openai_to_ws_tx.send("\0".into()).await.unwrap();
-
-    Ok(())
+    commands
 }
 
 #[tokio::main]

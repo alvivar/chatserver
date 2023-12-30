@@ -22,7 +22,21 @@ PubSub.subscribe(SocketEvent.partialMessage, (message) => {
 });
 
 PubSub.subscribe(SocketEvent.completeMessage, (message) => {
-    newChat(message);
+    let parts = message.split(":");
+
+    if (parts.length < 2) {
+        newChat(message);
+        return;
+    }
+
+    let command = parts[0].trim().toLowerCase();
+    let value = parts.slice(1).join(":").trim();
+
+    if (command.includes("alert")) {
+        setAlert(value);
+    } else if (command.includes("error")) {
+        updateError(value);
+    }
 });
 
 PubSub.subscribe(SocketEvent.reconnection, (delay) => {

@@ -2,7 +2,7 @@ const alert = document.getElementById("alert");
 const alertHeight = alert.offsetHeight;
 let clearTimer = null;
 
-function setAlert(message, duration = 3000) {
+function setAlert(message, duration = 4000) {
     alert.innerHTML = message;
     alert.classList.remove("hidden");
 

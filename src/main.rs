@@ -102,9 +102,11 @@ async fn handle_ws(
     let (openai_ws_tx, mut openai_ws_rx) = mpsc::channel::<String>(128);
     let client = Client::new();
 
+    // Session data.
+
     let prompts: HashMap<SocketAddr, Vec<String>> = HashMap::new();
     let prompts = Arc::new(RwLock::new(prompts));
-    let model: Arc<RwLock<String>> = Arc::new(RwLock::new("gpt-3.5-turbo-1106".into()));
+    let current_model: Arc<RwLock<String>> = Arc::new(RwLock::new("gpt-3.5-turbo-1106".into()));
 
     loop {
         tokio::select! {
@@ -130,21 +132,31 @@ async fn handle_ws(
 
                         let commands = extract_commands(&prompt);
 
-                        let mut chosen_model = { model.read().await.clone() };
-                        if let Some(model_name) = commands.get("model") {
-                            chosen_model = model_name.clone();
+                        let model;
+                        if let Some(to_model) = commands.get("model") {
+                            model = to_model.clone();
 
                             {
-                                let mut model = model.write().await;
-                                *model = model_name.clone();
+                                let mut model = current_model.write().await;
+                                *model = to_model.clone();
                             }
+
+                            let message = Message::Text(format!("Alert: Model set to {}.", to_model));
+                            ws.write_frame(message.to_frame()).await?;
+
+                            let eof = Message::Text("\0".into());
+                            ws.write_frame(eof.to_frame()).await?;
+                        }
+                        else
+                        {
+                            model = current_model.read().await.clone() ;
                         }
 
                         tokio::spawn(process_openai_request(
                             prompt,
                             openai_ws_tx.clone(),
                             client.clone(),
-                            chosen_model,
+                            model,
                         ));
                     }
 
@@ -250,23 +262,6 @@ async fn get_prompts(
     Vec::new()
 }
 
-fn set_env_from_file(file_path: &str) -> io::Result<()> {
-    let contents = fs::read_to_string(file_path)?;
-
-    for line in contents.lines() {
-        let parts: Vec<&str> = line.splitn(2, '=').collect();
-        if parts.len() == 2 {
-            let key = parts[0].trim();
-            let value = parts[1].trim();
-            env::set_var(key, value);
-        } else {
-            eprintln!("Warning: Skipping invalid line: {}", line);
-        }
-    }
-
-    Ok(())
-}
-
 fn extract_commands(input: &str) -> HashMap<String, String> {
     let mut commands = HashMap::new();
     let mut iter = input.split_whitespace().peekable();
@@ -282,6 +277,23 @@ fn extract_commands(input: &str) -> HashMap<String, String> {
     }
 
     commands
+}
+
+fn set_env_from_file(file_path: &str) -> io::Result<()> {
+    let contents = fs::read_to_string(file_path)?;
+
+    for line in contents.lines() {
+        let parts: Vec<&str> = line.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            let key = parts[0].trim();
+            let value = parts[1].trim();
+            env::set_var(key, value);
+        } else {
+            eprintln!("Warning: Skipping invalid line: {}", line);
+        }
+    }
+
+    Ok(())
 }
 
 #[tokio::main]

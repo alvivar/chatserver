@@ -9,6 +9,6 @@ edition = "2021"
 fastwebsockets = { version = "0.4.4", features = ["upgrade"] }
 tokio = { version = "1.35.1", features = ["full"] }
 hyper = { version = "0.14.28" }
-anyhow = { version = "1.0.76" }
+anyhow = { version = "1.0.77" }
 async-openai = { version = "0.14.3" }
 futures = { version = "0.3.30" }

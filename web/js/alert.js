@@ -2,8 +2,8 @@ const alert = document.getElementById("alert");
 const alertHeight = alert.offsetHeight;
 let clearTimer = null;
 
-function setAlert(message, duration = 4000) {
-    alert.innerHTML = message;
+function setAlert(message, duration = 5000) {
+    alert.innerHTML = `<p>${message}</p>` + alert.innerHTML;
     alert.classList.remove("hidden");
 
     clearTimeout(clearTimer);
@@ -11,6 +11,7 @@ function setAlert(message, duration = 4000) {
 }
 
 function clearAlert() {
+    alert.innerHTML = "";
     alert.classList.add("hidden");
 }
 
@@ -18,7 +19,7 @@ function updateAlertPosition(event) {
     const x = event.pageX;
     const y = event.pageY;
 
-    alert.style.left = `${x}px`;
+    alert.style.left = `${x + 8}px`;
     alert.style.top = `${y - alertHeight}px`;
 }
 

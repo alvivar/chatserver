@@ -10,6 +10,8 @@ import {
     UIEvent,
 } from "./ui.js";
 
+const SERVER = "//server"; // Token to detect server messages.
+
 // Subscriptions
 
 PubSub.subscribe(SocketEvent.connected, () => {
@@ -22,20 +24,23 @@ PubSub.subscribe(SocketEvent.partialMessage, (message) => {
 });
 
 PubSub.subscribe(SocketEvent.completeMessage, (message) => {
-    let parts = message.split(":");
+    let words = message.trim().split(" ");
 
-    if (parts.length < 2) {
-        newChat(message);
-        return;
+    console.log(words);
+    console.log(words[0]);
+    let isServerMessage = words[0] === SERVER;
+    console.log(isServerMessage);
+
+    if (isServerMessage) {
+        let parts = message.split(":");
+        let value = parts.slice(1).join(":").trim();
+
+        setAlert(value);
+        updateError(value);
     }
 
-    let command = parts[0].trim().toLowerCase();
-    let value = parts.slice(1).join(":").trim();
-
-    if (command.includes("alert")) {
-        setAlert(value);
-    } else if (command.includes("error")) {
-        updateError(value);
+    if (!isServerMessage) {
+        newChat(message);
     }
 });
 

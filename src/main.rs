@@ -1,6 +1,6 @@
 use async_openai::{
     config::OpenAIConfig,
-    types::{ChatCompletionRequestMessageArgs, CreateChatCompletionRequestArgs, Role},
+    types::{ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs, Role},
     Client,
 };
 use fastwebsockets::{upgrade::upgrade, FragmentCollector, OpCode, WebSocketError};
@@ -197,10 +197,11 @@ async fn process_openai_request(
     let request = CreateChatCompletionRequestArgs::default()
         .model(model)
         .max_tokens(512u16)
-        .messages([ChatCompletionRequestMessageArgs::default()
-            .content(&prompt)
+        .messages([ChatCompletionRequestUserMessageArgs::default()
+            .content(prompt)
             .role(Role::User)
-            .build()?])
+            .build()?
+            .into()])
         .build()?;
 
     let mut stream = client.chat().create_stream(request).await?;

@@ -2,7 +2,11 @@ const alert = document.getElementById("alert");
 const alertHeight = alert.offsetHeight;
 let clearTimer = null;
 
-function setAlert(message, duration = 5000) {
+function addAlert(message, clear = false, duration = 5000) {
+    if (clear) {
+        alert.innerHTML = "";
+    }
+
     alert.innerHTML = `<p>${message}</p>` + alert.innerHTML;
     alert.classList.remove("hidden");
 
@@ -30,4 +34,4 @@ document.addEventListener("mousemove", updateAlertPosition);
 
 // Exports
 
-export { setAlert };
+export { addAlert };

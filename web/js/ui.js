@@ -12,6 +12,8 @@ const systemBGColor = "bg-indigo-200";
 let reconLogId = -1;
 let reconLogTimer = 0;
 
+let clearError = false;
+
 const UIEvent = {
     sendMessage: "ui.sendMessage",
     copiedToClipboard: "ui.copiedToClipboard",
@@ -60,6 +62,8 @@ function adjustTextareaHeight(textarea) {
 function sendMessage() {
     const message = input.value.trim();
     const prompt = preprompt.value.trim();
+
+    clearError = true;
 
     input.value = "";
     input.style.height = preprompt.style.height;
@@ -125,9 +129,14 @@ function newChat(text) {
     messages.insertBefore(messageHtml(text), messages.firstChild);
 }
 
-function updateError(text) {
+function addError(text, clear = false) {
     if (pError) {
-        pError.textContent = text;
+        if (clear || clearError) {
+            clearError = false;
+            pError.innerHTML = "";
+        }
+
+        pError.innerHTML = `<p>${text}</p>` + pError.innerHTML;
         messages.insertBefore(pError, messages.firstChild);
     } else {
         const p = messageHtml(text);
@@ -143,7 +152,7 @@ function startReconLog(currentTime, canReconnectCallback) {
         reconLogTimer += 1;
 
         if (!canReconnectCallback()) {
-            updateError(`Disconnected. Try refreshing the page.`);
+            addError(`Disconnected. Try refreshing the page.`, true);
             clearReconLog();
             return;
         }
@@ -156,7 +165,7 @@ function startReconLog(currentTime, canReconnectCallback) {
             message = `Disconnected. Reconnecting...`;
         }
 
-        updateError(message);
+        addError(message, true);
     }, 1000);
 }
 
@@ -165,11 +174,4 @@ function clearReconLog() {
     reconLogTimer = 0;
 }
 
-export {
-    appendText,
-    newChat,
-    updateError,
-    startReconLog,
-    clearReconLog,
-    UIEvent,
-};
+export { appendText, newChat, addError, startReconLog, clearReconLog, UIEvent };

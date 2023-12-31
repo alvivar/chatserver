@@ -1,10 +1,10 @@
 import { PubSub } from "./pubsub.js";
-import { setAlert } from "./alert.js";
+import { addAlert } from "./alert.js";
 import { connect, send, canReconnect, SocketEvent } from "./socket.js";
 import {
     appendText,
     newChat,
-    updateError,
+    addError,
     startReconLog,
     clearReconLog,
     UIEvent,
@@ -16,7 +16,7 @@ const SERVER = "//server"; // Token to detect server messages.
 
 PubSub.subscribe(SocketEvent.connected, () => {
     clearReconLog();
-    updateError("Connected.");
+    addError("Connected.");
 });
 
 PubSub.subscribe(SocketEvent.partialMessage, (message) => {
@@ -35,8 +35,8 @@ PubSub.subscribe(SocketEvent.completeMessage, (message) => {
         let parts = message.split(":");
         let value = parts.slice(1).join(":").trim();
 
-        setAlert(value);
-        updateError(value);
+        addAlert(value);
+        addError(value);
     }
 
     if (!isServerMessage) {
@@ -53,13 +53,13 @@ PubSub.subscribe(UIEvent.sendMessage, (message) => {
 });
 
 PubSub.subscribe(UIEvent.copiedToClipboard, (wordsCount) => {
-    setAlert(`Copied ${wordsCount} words to clipboard!`);
+    addAlert(`Copied ${wordsCount} words to clipboard!`);
 });
 
 // Functions
 
 function welcome() {
-    setAlert("Welcome!");
+    addAlert("Welcome!", true);
     document.removeEventListener("mousemove", welcome);
 }
 

@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fastwebsockets = { version = "0.4.4", features = ["upgrade"] }
 tokio = { version = "1.35.1", features = ["full"] }
+futures = "0.3.30"
+fastwebsockets = { version = "0.4.4", features = ["upgrade"] }
 hyper = { version = "0.14.28" }
-anyhow = { version = "1.0.77" }
 async-openai = "0.17.1"
-futures = { version = "0.3.30" }
+anyhow = "1.0.78"

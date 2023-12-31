@@ -3,15 +3,26 @@ use async_openai::{
     types::{ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs, Role},
     Client,
 };
-use fastwebsockets::{upgrade::upgrade, FragmentCollector, OpCode, WebSocketError};
+use fastwebsockets::{
+    upgrade::{self, upgrade},
+    FragmentCollector, OpCode, WebSocketError,
+};
 
 use anyhow::Result;
 use futures::StreamExt;
-use hyper::{server::conn::Http, service::service_fn, upgrade::Upgraded, Body, Request, Response};
+use hyper::{
+    body::{Bytes, Incoming},
+    server::conn::http1,
+    service::service_fn,
+    upgrade::Upgraded,
+    Request, Response,
+};
 use tokio::{
     net::TcpListener,
     sync::{mpsc, RwLock},
 };
+
+use http_body_util::Empty;
 
 use std::{
     collections::HashMap,
@@ -30,11 +41,11 @@ use filemap::{FileData, FileMap};
 const SERVER: &str = "//server"; // This is used to identify server messages.
 
 async fn request_handler(
-    mut request: Request<Body>,
+    mut request: Request<Incoming>,
     address: SocketAddr,
     state: SharedState,
     static_files: Arc<HashMap<String, FileMap>>,
-) -> Result<Response<Body>> {
+) -> Result<Response<Empty<Bytes>>, WebSocketError> {
     let mut uri = request.uri().path();
 
     if uri == "/" {
@@ -43,12 +54,10 @@ async fn request_handler(
 
     match uri {
         "/ws" => {
-            let (response, upgrade) = upgrade(&mut request)?;
+            let (response, fut) = upgrade(&mut request)?;
 
             tokio::spawn(async move {
-                let ws = FragmentCollector::new(upgrade.await.unwrap());
-
-                handle_ws(ws, address, &state).await.unwrap();
+                handle_ws(fut, address, &state).await.unwrap();
 
                 {
                     let mut state = state.write().await;
@@ -61,38 +70,44 @@ async fn request_handler(
 
         _ => {
             if let Some(map) = static_files.get(uri) {
-                let response = serve_file(&map.data, map.mime_type).await?;
+                // let response = serve_file(&map.data, map.mime_type).await;
 
-                Ok(response)
+                // Ok(response)
+                Ok(Response::new(Empty::new()))
             } else {
                 let response = Response::builder()
                     .status(404)
-                    .body("Not found (404)".into())?;
+                    .body("Not found (404)")
+                    .unwrap();
 
-                Ok(response)
+                Ok(Response::new(Empty::new()))
             }
         }
     }
 }
 
-async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Body>> {
-    let body = match data {
-        FileData::Bytes(b) => Body::from(b.to_vec()),
-    };
+async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Empty<Bytes>>> {
+    // let body = match data {
+    //     FileData::Bytes(b) => Body::from(b.to_vec()),
+    // };
 
-    let response = Response::builder()
-        .status(200)
-        .header("Content-Type", mime_type)
-        .body(body)?;
+    // let response = Response::builder()
+    //     .status(200)
+    //     .header("Content-Type", mime_type)
+    //     .body(body)?;
 
-    Ok(response)
+    // Ok(response)
+
+    Ok(Response::new(Empty::new()))
 }
 
 async fn handle_ws(
-    mut ws: FragmentCollector<Upgraded>,
+    fut: upgrade::UpgradeFut,
     address: SocketAddr,
     state: &SharedState,
 ) -> Result<(), WebSocketError> {
+    let mut ws = FragmentCollector::new(fut.await.unwrap());
+
     let (tx, mut rx) = mpsc::channel(128);
     {
         let mut state = state.write().await;
@@ -320,9 +335,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let static_files = static_files.clone();
 
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new()
+            let io = hyper_util::rt::TokioIo::new(stream);
+            if let Err(err) = http1::Builder::new()
                 .serve_connection(
-                    stream,
+                    io,
                     service_fn(move |request| {
                         request_handler(request, address, state.clone(), static_files.clone())
                     }),

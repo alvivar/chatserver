@@ -90,19 +90,6 @@ async fn request_handler(
     }
 }
 
-async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Full<Bytes>>> {
-    let body = match data {
-        FileData::Bytes(bytes) => Bytes::from(bytes.to_vec()),
-    };
-
-    let response = Response::builder()
-        .status(200)
-        .header("Content-Type", mime_type)
-        .body(Full::from(body))?;
-
-    Ok(response)
-}
-
 async fn handle_ws(
     fut: upgrade::UpgradeFut,
     address: SocketAddr,
@@ -247,6 +234,19 @@ async fn process_openai_request(
     openai_to_ws_tx.send("\0".into()).await.unwrap();
 
     Ok(())
+}
+
+async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Full<Bytes>>> {
+    let body = match data {
+        FileData::Bytes(bytes) => Bytes::from(bytes.to_vec()),
+    };
+
+    let response = Response::builder()
+        .status(200)
+        .header("Content-Type", mime_type)
+        .body(Full::from(body))?;
+
+    Ok(response)
 }
 
 async fn store_prompt(

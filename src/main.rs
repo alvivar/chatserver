@@ -7,14 +7,10 @@ use fastwebsockets::{
     upgrade::{self, upgrade},
     FragmentCollector, OpCode, WebSocketError,
 };
-
-use anyhow::Result;
-use futures::StreamExt;
 use hyper::{
     body::{Bytes, Incoming},
     server::conn::http1,
     service::service_fn,
-    upgrade::Upgraded,
     Request, Response,
 };
 use tokio::{
@@ -22,7 +18,9 @@ use tokio::{
     sync::{mpsc, RwLock},
 };
 
-use http_body_util::Empty;
+use anyhow::Result;
+use futures::StreamExt;
+use http_body_util::Full;
 
 use std::{
     collections::HashMap,
@@ -45,7 +43,7 @@ async fn request_handler(
     address: SocketAddr,
     state: SharedState,
     static_files: Arc<HashMap<String, FileMap>>,
-) -> Result<Response<Empty<Bytes>>, WebSocketError> {
+) -> Result<Response<Full<Bytes>>, WebSocketError> {
     let mut uri = request.uri().path();
 
     if uri == "/" {
@@ -54,7 +52,7 @@ async fn request_handler(
 
     match uri {
         "/ws" => {
-            let (response, fut) = upgrade(&mut request)?;
+            let (empty_response, fut) = upgrade(&mut request)?;
 
             tokio::spawn(async move {
                 handle_ws(fut, address, &state).await.unwrap();
@@ -65,40 +63,44 @@ async fn request_handler(
                 }
             });
 
+            let mut response = Response::builder()
+                .status(empty_response.status())
+                .body(Full::from(Bytes::from("OK")))
+                .unwrap();
+
+            response.headers_mut().clone_from(empty_response.headers());
+
             Ok(response)
         }
 
         _ => {
             if let Some(map) = static_files.get(uri) {
-                // let response = serve_file(&map.data, map.mime_type).await;
+                let response = serve_file(&map.data, map.mime_type).await.unwrap();
 
-                // Ok(response)
-                Ok(Response::new(Empty::new()))
+                Ok(response)
             } else {
                 let response = Response::builder()
                     .status(404)
-                    .body("Not found (404)")
+                    .body(Full::from("Not found (404)"))
                     .unwrap();
 
-                Ok(Response::new(Empty::new()))
+                Ok(response)
             }
         }
     }
 }
 
-async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Empty<Bytes>>> {
-    // let body = match data {
-    //     FileData::Bytes(b) => Body::from(b.to_vec()),
-    // };
+async fn serve_file(data: &FileData, mime_type: &'static str) -> Result<Response<Full<Bytes>>> {
+    let body = match data {
+        FileData::Bytes(bytes) => Bytes::from(bytes.to_vec()),
+    };
 
-    // let response = Response::builder()
-    //     .status(200)
-    //     .header("Content-Type", mime_type)
-    //     .body(body)?;
+    let response = Response::builder()
+        .status(200)
+        .header("Content-Type", mime_type)
+        .body(Full::from(body))?;
 
-    // Ok(response)
-
-    Ok(Response::new(Empty::new()))
+    Ok(response)
 }
 
 async fn handle_ws(
@@ -336,16 +338,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         tokio::task::spawn(async move {
             let io = hyper_util::rt::TokioIo::new(stream);
-            if let Err(err) = http1::Builder::new()
+            let conn_fut = http1::Builder::new()
                 .serve_connection(
                     io,
                     service_fn(move |request| {
                         request_handler(request, address, state.clone(), static_files.clone())
                     }),
                 )
-                .with_upgrades()
-                .await
-            {
+                .with_upgrades();
+
+            if let Err(err) = conn_fut.await {
                 eprintln!("Serve Connection Error: {:?}", err);
             }
         });

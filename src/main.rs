@@ -65,7 +65,7 @@ async fn request_handler(
 
             let mut response = Response::builder()
                 .status(empty_response.status())
-                .body(Full::from(Bytes::from("OK")))
+                .body(Full::default())
                 .unwrap();
 
             response.headers_mut().clone_from(empty_response.headers());
@@ -299,7 +299,7 @@ fn extract_commands(input: &str) -> HashMap<String, String> {
     commands
 }
 
-fn set_env_from_file(file_path: &str) -> io::Result<()> {
+fn set_environment_from_file(file_path: &str) -> io::Result<()> {
     let contents = fs::read_to_string(file_path)?;
 
     for line in contents.lines() {
@@ -318,7 +318,7 @@ fn set_env_from_file(file_path: &str) -> io::Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    set_env_from_file(".env")?;
+    set_environment_from_file(".env")?;
 
     let address = SocketAddr::from(([127, 0, 0, 1], 8080));
     let listener = TcpListener::bind(address).await?;
@@ -338,7 +338,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         tokio::task::spawn(async move {
             let io = hyper_util::rt::TokioIo::new(stream);
-            let conn_fut = http1::Builder::new()
+            let connection = http1::Builder::new()
                 .serve_connection(
                     io,
                     service_fn(move |request| {
@@ -347,7 +347,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 )
                 .with_upgrades();
 
-            if let Err(err) = conn_fut.await {
+            if let Err(err) = connection.await {
                 eprintln!("Serve Connection Error: {:?}", err);
             }
         });

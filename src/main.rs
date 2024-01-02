@@ -98,6 +98,7 @@ async fn handle_ws(
     let mut ws = FragmentCollector::new(fut.await.unwrap());
 
     let (tx, mut rx) = mpsc::channel(128);
+
     {
         let mut state = state.write().await;
         state.clients.insert(address, tx);

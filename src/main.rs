@@ -282,6 +282,7 @@ async fn get_prompts(
     Vec::new()
 }
 
+// All "!command value" from a string are extracted and returned as a HashMap.
 fn extract_commands(input: &str) -> HashMap<String, String> {
     let mut commands = HashMap::new();
     let mut iter = input.split_whitespace().peekable();
@@ -309,7 +310,7 @@ fn set_environment_from_file(file_path: &str) -> io::Result<()> {
             let value = parts[1].trim();
             env::set_var(key, value);
         } else {
-            eprintln!("Warning: Skipping invalid line: {}", line);
+            eprintln!("set_environment_from_file Warning: Skipping line: {}", line);
         }
     }
 
@@ -348,7 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .with_upgrades();
 
             if let Err(err) = connection.await {
-                eprintln!("Serve Connection Error: {:?}", err);
+                eprintln!("Connection Error: {:?}", err);
             }
         });
     }

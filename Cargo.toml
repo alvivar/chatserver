@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.35.1", features = ["full"] }
-futures = "0.3.30"
 fastwebsockets = { version = "0.6.0", features = ["upgrade"] }
-hyper = "1.0.0"
-hyper-util = "0.1.2"
+futures = "0.3.30"
+hyper = "1.1.0"
 async-openai = "0.17.1"
-anyhow = "1.0.78"
+hyper-util = "0.1.2"
 http-body-util = "0.1.0"
+anyhow = "1.0.79"

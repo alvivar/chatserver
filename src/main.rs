@@ -52,7 +52,7 @@ async fn request_handler(
 
     match uri {
         "/ws" => {
-            let (empty_response, fut) = upgrade(&mut request)?;
+            let (empty, fut) = upgrade(&mut request)?;
 
             tokio::spawn(async move {
                 handle_ws(fut, address, &state).await.unwrap();
@@ -64,11 +64,11 @@ async fn request_handler(
             });
 
             let mut response = Response::builder()
-                .status(empty_response.status())
+                .status(empty.status())
                 .body(Full::default())
                 .unwrap();
 
-            response.headers_mut().clone_from(empty_response.headers());
+            response.headers_mut().clone_from(empty.headers());
 
             Ok(response)
         }

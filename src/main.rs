@@ -52,7 +52,7 @@ async fn request_handler(
 
     match uri {
         "/ws" => {
-            let (empty, fut) = upgrade(&mut request)?;
+            let (fut_response, fut) = upgrade(&mut request)?;
 
             tokio::spawn(async move {
                 handle_ws(fut, address, &state).await.unwrap();
@@ -64,11 +64,11 @@ async fn request_handler(
             });
 
             let mut response = Response::builder()
-                .status(empty.status())
+                .status(fut_response.status())
                 .body(Full::default())
                 .unwrap();
 
-            response.headers_mut().clone_from(empty.headers());
+            response.headers_mut().clone_from(fut_response.headers());
 
             Ok(response)
         }
@@ -129,11 +129,8 @@ async fn handle_ws(
                         let prompt = String::from_utf8(frame.payload.to_vec()).unwrap();
                         store_prompt(address, prompt.clone(), &prompts).await;
 
-                        let message = Message::Text(prompt.clone());
-                        ws.write_frame(message.to_frame()).await?;
-
-                        let eof = Message::Text("\0".into());
-                        ws.write_frame(eof.to_frame()).await?;
+                        ws.write_frame(Message::Text(prompt.clone()).as_frame()).await?;
+                        ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
 
                         // Commands.
 
@@ -148,11 +145,8 @@ async fn handle_ws(
                                 *model = to_model.clone();
                             }
 
-                            let message = Message::Text(format!("{} Alert: Model set to {}.", SERVER_ID, to_model));
-                            ws.write_frame(message.to_frame()).await?;
-
-                            let eof = Message::Text("\0".into());
-                            ws.write_frame(eof.to_frame()).await?;
+                            ws.write_frame(Message::Text(format!("{} Alert: Model set to {}.", SERVER_ID, to_model)).as_frame()).await?;
+                            ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
                         }
                         else
                         {
@@ -174,7 +168,7 @@ async fn handle_ws(
             message = openai_ws_rx.recv() => {
                 if let Some(message) = message {
                     let message = Message::Text(message);
-                    ws.write_frame(message.to_frame()).await?;
+                    ws.write_frame(message.as_frame()).await?;
                 } else {
                     break;
                 }
@@ -182,7 +176,7 @@ async fn handle_ws(
 
             frame = rx.recv() => {
                 if let Some(frame) = frame {
-                    ws.write_frame(frame.to_frame()).await?;
+                    ws.write_frame(frame.as_frame()).await?;
                 } else {
                     break;
                 }

@@ -31,7 +31,7 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn to_frame(&self) -> Frame {
+    pub fn as_frame(&self) -> Frame {
         match self {
             Message::Text(text) => Frame::text(text.as_bytes().into()),
             Message::Binary(data) => Frame::binary(data.as_slice().into()),

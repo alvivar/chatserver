@@ -36,7 +36,7 @@ use data::{Message, SharedState, State};
 mod filemap; // Static files are served from here.
 use filemap::{FileData, FileMap};
 
-const SERVER: &str = "//server"; // This is used to identify server messages.
+const SERVER_ID: &str = "//server"; // This is used to identify server messages.
 
 async fn request_handler(
     mut request: Request<Incoming>,
@@ -148,7 +148,7 @@ async fn handle_ws(
                                 *model = to_model.clone();
                             }
 
-                            let message = Message::Text(format!("{} Alert: Model set to {}.", SERVER, to_model));
+                            let message = Message::Text(format!("{} Alert: Model set to {}.", SERVER_ID, to_model));
                             ws.write_frame(message.to_frame()).await?;
 
                             let eof = Message::Text("\0".into());
@@ -224,7 +224,7 @@ async fn process_openai_request(
                 eprintln!("OpenAI Error: {}", err);
 
                 openai_to_ws_tx
-                    .send(format!("{} OpenAI Error: {}", SERVER, err))
+                    .send(format!("{} OpenAI Error: {}", SERVER_ID, err))
                     .await
                     .unwrap();
             }

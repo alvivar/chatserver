@@ -10,7 +10,6 @@ pub struct State {
     pub clients: HashMap<SocketAddr, Tx>,
 }
 
-#[allow(dead_code)]
 impl State {
     pub async fn broadcast(&self, sender: &SocketAddr, msg: Message) {
         for (addr, tx) in self.clients.iter() {

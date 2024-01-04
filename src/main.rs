@@ -136,22 +136,30 @@ async fn handle_ws(
 
                         let commands = extract_commands(&prompt);
 
-                        let model;
-                        if let Some(to_model) = commands.get("model") {
-                            model = to_model.clone();
-
+                        let model = match commands.get("model") {
+                            Some(to_model) =>
                             {
-                                let mut model = current_model.write().await;
-                                *model = to_model.clone();
-                            }
+                                {
+                                    let mut model = current_model.write().await;
+                                    *model = to_model.clone();
+                                }
 
-                            ws.write_frame(Message::Text(format!("{} Alert: Model set to {}.", SERVER_ID, to_model)).as_frame()).await?;
+                                ws.write_frame(Message::Text(format!("{} Alert: Model set to {}.", SERVER_ID, to_model)).as_frame()).await?;
+                                ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
+
+                                to_model.clone()
+                            },
+
+                            None => {
+                                current_model.read().await.clone()
+                            },
+                        };
+
+                        if let Some(_) = commands.get("info") {
+                            ws.write_frame(Message::Text(format!("{} Model: Using {} model.", SERVER_ID, model)).as_frame()).await?;
                             ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
-                        }
-                        else
-                        {
-                            model = current_model.read().await.clone() ;
-                        }
+                            continue;
+                        };
 
                         tokio::spawn(process_openai_request(
                             prompt,
@@ -284,11 +292,9 @@ fn extract_commands(input: &str) -> HashMap<String, String> {
 
     while let Some(word) = iter.next() {
         if word.starts_with('!') && word.len() > 1 {
-            if let Some(&next_word) = iter.peek() {
-                let command = &word[1..];
-                commands.insert(command.to_string(), next_word.to_string());
-            }
-            iter.next(); // Skip the next word as it is already used as a value.
+            let command = &word[1..];
+            let value = iter.next().unwrap_or("").to_string();
+            commands.insert(command.to_string(), value);
         }
     }
 

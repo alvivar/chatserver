@@ -24,7 +24,7 @@ PubSub.subscribe(SocketEvent.partialMessage, (message) => {
 });
 
 PubSub.subscribe(SocketEvent.completeMessage, (message) => {
-    let words = message.trim().split(" ");
+    let words = message.trim().split(/[\s:]+/);
 
     console.log(words);
     console.log(words[0]);

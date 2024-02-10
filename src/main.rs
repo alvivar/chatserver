@@ -203,7 +203,7 @@ async fn process_openai_request(
 ) -> anyhow::Result<()> {
     let request = CreateChatCompletionRequestArgs::default()
         .model(model)
-        .max_tokens(512u16)
+        .max_tokens(1024u16)
         .messages([ChatCompletionRequestUserMessageArgs::default()
             .content(prompt)
             .role(Role::User)

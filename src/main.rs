@@ -136,6 +136,7 @@ async fn handle_ws(
 
                         let commands = extract_commands(&prompt);
 
+                        let mut has_model = false;
                         let model = match commands.get("model") {
                             Some(to_model) =>
                             {
@@ -147,6 +148,7 @@ async fn handle_ws(
                                 ws.write_frame(Message::Text(format!("{} Alert: Model set to {}.", SERVER_ID, to_model)).as_frame()).await?;
                                 ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
 
+                                has_model = true;
                                 to_model.clone()
                             },
 
@@ -159,6 +161,11 @@ async fn handle_ws(
                             ws.write_frame(Message::Text(format!("{} Info: Using {} model.", SERVER_ID, model)).as_frame()).await?;
                             ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
                             continue;
+                        }
+                        else if !has_model
+                        {
+                            ws.write_frame(Message::Text(format!("{} Info: {}", SERVER_ID, model)).as_frame()).await?;
+                            ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
                         };
 
                         tokio::spawn(process_openai_request(

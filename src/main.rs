@@ -157,7 +157,7 @@ async fn handle_ws(
                             },
                         };
 
-                        if let Some(_) = commands.get("info") {
+                        if commands.get("info").is_some() {
                             ws.write_frame(Message::Text(format!("{} Info: Using {} model.", SERVER_ID, model)).as_frame()).await?;
                             ws.write_frame(Message::Text("\0".into()).as_frame()).await?;
                             continue;

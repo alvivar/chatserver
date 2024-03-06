@@ -33,7 +33,7 @@ use std::{
 mod data;
 use data::{Message, SharedState, State};
 
-mod filemap; // Static files are served from here.
+mod filemap;
 use filemap::{FileData, FileMap};
 
 const SERVER_ID: &str = "//server"; // This is used to identify server messages.

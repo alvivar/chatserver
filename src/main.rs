@@ -224,7 +224,9 @@ async fn process_openai_request(
             Ok(response) => {
                 for chat_choice in response.choices.iter() {
                     if let Some(ref content) = chat_choice.delta.content {
-                        openai_to_ws_tx.send(content.clone()).await.unwrap();
+                        if let Err(err) = openai_to_ws_tx.send(content.clone()).await {
+                            eprintln!("OpenAI Sender Error: {}", err);
+                        }
                     }
                 }
             }
